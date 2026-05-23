@@ -105,6 +105,19 @@ async def get_stats(credentials=Depends(verify_credentials)):
     return JSONResponse(content=stats)
 
 
+@router.post("/refresh")
+async def refresh_cache(credentials=Depends(verify_credentials)):
+    """刷新内存缓存（导入数据后需要执行）"""
+    try:
+        count = vfs.refresh()
+        return JSONResponse(content={
+            "message": "缓存已刷新",
+            "total": count
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/resources/search")
 async def search_resources(
     page: int = 1,
