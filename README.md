@@ -63,7 +63,7 @@ WEB_UI_PORT: 8001
 123PAN_PASSWORD: "密码"
 
 # 是否按哈希前缀分桶（False 则显示所有资源名称）
-SPLIT_FOLDER: False
+SPLIT_FOLDER: True
 EOF
 ```
 
@@ -213,7 +213,7 @@ db.close()
 | `WEB_UI_PORT` | Web 管理界面端口 | `8001` |
 | `123PAN_USERNAME` | 123云盘账号 | - |
 | `123PAN_PASSWORD` | 123云盘密码 | - |
-| `SPLIT_FOLDER` | 是否按哈希分桶 | `False` |
+| `SPLIT_FOLDER` | 是否按哈希分桶 | `True` |
 
 ### 端口说明
 
