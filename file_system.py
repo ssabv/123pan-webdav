@@ -73,6 +73,11 @@ class VirtualFileSystem:
         load_data_into_memory(self.db)
         self.root = FileNode(id=-1, parent_id=-2, name="ROOT", type=TYPE_DIRECTORY, size=0, etag="", abs_path_str="/")
         print(f"虚拟文件系统已初始化，数据从内存读取。")
+    
+    def refresh(self):
+        """刷新内存缓存"""
+        load_data_into_memory(self.db)
+        return len(MEMORY_CACHE_BY_NAME)
         print(f"请通过WebDAV客户端挂载：\n\n")
         print(f"链接（本机访问）: http://127.0.0.1:{settings_data.get('WEBDAV_PORT')}/")
         print(f"链接（局域网访问）: http://本机的局域网IP地址:{settings_data.get('WEBDAV_PORT')}/")
