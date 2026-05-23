@@ -475,3 +475,45 @@ def getSearchText(b64data, rootFolderName):
         result += item["FileName"]
         result += " "
     return result
+
+def transform123FastLinkJsonToShareCodeByYear(json_dict):
+    """
+    按年份（第一级目录）拆分 123FastLink JSON 数据
+    每个年份作为独立资源
+    """
+    if not json_dict.get("usesBase62EtagsInExport"):
+        raise Exception("未知格式")
+    
+    # 按年份分组
+    years = {}
+    for item in json_dict.get("files", []):
+        path = item["path"]
+        parts = path.split("/")
+        if len(parts) > 1:
+            year = parts[0]  # "1915", "1917", etc.
+            if year not in years:
+                years[year] = []
+            years[year].append(item)
+    
+    # 每个年份独立转换
+    OUTPUT = []
+    for year in sorted(years.keys()):
+        files = years[year]
+        
+        # 构建该年份的 JSON dict
+        year_dict = {
+            "scriptVersion": json_dict.get("scriptVersion", ""),
+            "exportVersion": json_dict.get("exportVersion", ""),
+            "usesBase62EtagsInExport": True,
+            "commonPath": f"{year}/",
+            "files": files
+        }
+        
+        # 使用原始函数转换
+        results = transform123FastLinkJsonToShareCode(year_dict)
+        for result in results:
+            # 修改根文件夹名称为 "原盘电影合集-{year}"
+            result["rootFolderName"] = f"原盘电影合集-{year}"
+            OUTPUT.append(result)
+    
+    return OUTPUT
