@@ -13,7 +13,7 @@ with open("settings.yaml", "r", encoding="utf-8") as f:
 app = FastAPI(
     title="123Pan Unlimited WebDAV",
     description="将 123Pan Unlimited Share 的数据库挂载为WebDAV服务，并提供Web管理界面",
-    version="2.0.0",
+    version="2.1.0",
     docs_url="/docs",
     redoc_url=None,
 )
