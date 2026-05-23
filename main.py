@@ -16,7 +16,7 @@ with open("settings.yaml", "r", encoding="utf-8") as f:
 webdav_app = FastAPI(
     title="123Pan WebDAV",
     description="123云盘秒传资源 WebDAV 服务",
-    version="2.1.0",
+    version="2.2.0",
     docs_url=None,
     redoc_url=None,
 )
@@ -26,7 +26,7 @@ webdav_app.include_router(webdav_router)
 web_app = FastAPI(
     title="123Pan 管理面板",
     description="123云盘秒传资源管理界面",
-    version="2.1.0",
+    version="2.2.0",
     docs_url="/docs",
     redoc_url=None,
 )
