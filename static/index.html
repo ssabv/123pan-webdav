@@ -31,7 +31,7 @@
                 <button id="clearBtn" class="btn btn-secondary">清除</button>
             </div>
             <div class="actions">
-                <button id="importBtn" class="btn btn-success">📥 导入 JSON</button>
+                <button id="importBtn" class="btn btn-success">📥 导入资源</button>
                 <button id="refreshBtn" class="btn btn-secondary">🔄 刷新</button>
             </div>
         </div>
@@ -77,14 +77,14 @@
     <div id="importModal" class="modal" style="display: none;">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>📥 导入 JSON 数据</h2>
+                <h2>📥 导入资源数据</h2>
                 <span class="close-btn" id="closeImportModal">&times;</span>
             </div>
             <div class="modal-body">
                 <div id="dropZone" class="drop-zone">
-                    <p>📁 将 JSON 文件拖拽到此处</p>
+                    <p>📁 将 JSON、TXT 或 123share 文件拖拽到此处</p>
                     <p class="hint">或点击选择文件</p>
-                    <input type="file" id="fileInput" accept=".json" style="display: none;" />
+                    <input type="file" id="fileInput" accept=".json,.txt,.123share" style="display: none;" />
                 </div>
                 <div id="importPreview" class="import-preview" style="display: none;">
                     <h3>文件预览</h3>

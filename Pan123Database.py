@@ -567,16 +567,49 @@ class Pan123Database:
             "latest_time": latest_time
         }
 
-    def importFromJson(self, json_data: dict):
-        """导入 123FastLink 格式的 JSON 数据"""
+    def importFromJson(self, json_data):
+        """
+        导入数据，支持多种格式:
+        1. 123FastLink JSON 格式 (dict with files array)
+        2. 123FastLink 单行格式 (string: "123FLCPV2$hash#size#filename")
+        3. 多行文本格式 (string with multiple lines)
+        4. 数组格式 (list of dicts or strings)
+        """
         imported = 0
         skipped = 0
         errors = []
 
         try:
-            # 使用 transform123FastLinkJsonToShareCode 转换
-            results = transform123FastLinkJsonToShareCode(json_data)
-
+            results = []
+            
+            # 判断格式
+            if isinstance(json_data, str):
+                # 字符串格式: 可能是单行或多行
+                results = parse123FastLinkText(json_data)
+            elif isinstance(json_data, dict):
+                if "files" in json_data:
+                    # JSON 格式 (123FastLink export)
+                    results = transform123FastLinkJsonToShareCode(json_data)
+                elif "rootFolderName" in json_data and "shareCode" in json_data:
+                    # 已经是标准格式
+                    results = [json_data]
+                else:
+                    errors.append("未知的 JSON 格式")
+            elif isinstance(json_data, list):
+                # 数组格式
+                for item in json_data:
+                    if isinstance(item, str):
+                        parsed = parse123FastLinkLine(item)
+                        if parsed:
+                            results.append(parsed)
+                    elif isinstance(item, dict):
+                        if "files" in item:
+                            parsed = transform123FastLinkJsonToShareCode(item)
+                            results.extend(parsed)
+                        elif "rootFolderName" in item and "shareCode" in item:
+                            results.append(item)
+            
+            # 导入到数据库
             for item in results:
                 rootFolderName = item["rootFolderName"]
                 shareCode = item["shareCode"]

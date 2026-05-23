@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Union
 import yaml
 
 from file_system import vfs
@@ -14,8 +14,8 @@ router = APIRouter(prefix="/api", tags=["API"])
 db = vfs.db
 
 
-class ImportRequest(BaseModel):
-    """导入请求模型"""
+class ImportJsonRequest(BaseModel):
+    """导入 JSON 请求模型"""
     scriptVersion: Optional[str] = None
     exportVersion: Optional[str] = None
     usesBase62EtagsInExport: Optional[bool] = True
@@ -23,6 +23,11 @@ class ImportRequest(BaseModel):
     totalFilesCount: Optional[int] = None
     totalSize: Optional[int] = None
     files: list
+
+
+class ImportTextRequest(BaseModel):
+    """导入文本请求模型"""
+    text: str
 
 
 @router.get("/resources")
@@ -51,13 +56,31 @@ async def get_resource(
 
 @router.post("/resources/import")
 async def import_resources(
-    import_req: ImportRequest,
+    request: Request,
     credentials=Depends(verify_credentials)
 ):
-    """导入 JSON 数据"""
+    """导入数据，支持多种格式"""
     try:
-        json_data = import_req.model_dump()
-        result = db.importFromJson(json_data)
+        content_type = request.headers.get("content-type", "")
+        
+        if "application/json" in content_type:
+            json_data = await request.json()
+            result = db.importFromJson(json_data)
+        elif "text/plain" in content_type:
+            text = await request.body()
+            text = text.decode("utf-8")
+            result = db.importFromJson(text)
+        else:
+            # 尝试解析为 JSON
+            try:
+                json_data = await request.json()
+                result = db.importFromJson(json_data)
+            except:
+                # 尝试解析为文本
+                text = await request.body()
+                text = text.decode("utf-8")
+                result = db.importFromJson(text)
+        
         return JSONResponse(content=result)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

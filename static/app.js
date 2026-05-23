@@ -327,19 +327,32 @@ function initImport() {
 
 // 处理文件
 function handleFile(file) {
-    if (!file.name.endsWith('.json')) {
-        alert('请选择 JSON 文件');
+    if (!file.name.endsWith('.json') && !file.name.endsWith('.txt') && !file.name.endsWith('.123share')) {
+        alert('请选择 JSON、TXT 或 123share 文件');
         return;
     }
     
     const reader = new FileReader();
     reader.onload = (e) => {
+        const content = e.target.result;
+        
+        // 尝试解析为 JSON
         try {
-            importData = JSON.parse(e.target.result);
+            importData = JSON.parse(content);
             showImportPreview(importData);
-        } catch (error) {
-            alert('JSON 解析失败: ' + error.message);
+            return;
+        } catch (e) {
+            // 不是 JSON 格式
         }
+        
+        // 尝试解析为 123FastLink 文本格式
+        if (content.includes('123FLCP') || content.includes('#')) {
+            importData = content;
+            showImportPreview({type: 'text', content: content});
+            return;
+        }
+        
+        alert('无法识别文件格式');
     };
     reader.readAsText(file);
 }
@@ -349,31 +362,56 @@ function showImportPreview(data) {
     const preview = document.getElementById('importPreview');
     const content = document.getElementById('previewContent');
     
-    const filesCount = data.files ? data.files.length : 0;
-    const totalSize = data.totalSize || 0;
-    
-    content.innerHTML = `
-        <div class="preview-item">
-            <span>脚本版本</span>
-            <span>${data.scriptVersion || '-'}</span>
-        </div>
-        <div class="preview-item">
-            <span>导出版本</span>
-            <span>${data.exportVersion || '-'}</span>
-        </div>
-        <div class="preview-item">
-            <span>公共路径</span>
-            <span>${data.commonPath || '-'}</span>
-        </div>
-        <div class="preview-item">
-            <span>文件数量</span>
-            <span>${filesCount.toLocaleString()} 个</span>
-        </div>
-        <div class="preview-item">
-            <span>总大小</span>
-            <span>${formatSize(totalSize)}</span>
-        </div>
-    `;
+    // 判断是否为文本格式
+    if (data.type === 'text') {
+        const lines = data.content.split('\n').filter(l => l.trim());
+        const sampleLines = lines.slice(0, 3);
+        
+        content.innerHTML = `
+            <div class="preview-item">
+                <span>格式</span>
+                <span>123FastLink 文本格式</span>
+            </div>
+            <div class="preview-item">
+                <span>行数</span>
+                <span>${lines.length.toLocaleString()} 条</span>
+            </div>
+            <div class="preview-item">
+                <span>示例</span>
+                <span style="font-size: 12px; word-break: break-all;">${sampleLines.join('<br>')}</span>
+            </div>
+        `;
+    } else {
+        const filesCount = data.files ? data.files.length : 0;
+        const totalSize = data.totalSize || 0;
+        
+        content.innerHTML = `
+            <div class="preview-item">
+                <span>格式</span>
+                <span>123FastLink JSON 格式</span>
+            </div>
+            <div class="preview-item">
+                <span>脚本版本</span>
+                <span>${data.scriptVersion || '-'}</span>
+            </div>
+            <div class="preview-item">
+                <span>导出版本</span>
+                <span>${data.exportVersion || '-'}</span>
+            </div>
+            <div class="preview-item">
+                <span>公共路径</span>
+                <span>${data.commonPath || '-'}</span>
+            </div>
+            <div class="preview-item">
+                <span>文件数量</span>
+                <span>${filesCount.toLocaleString()} 个</span>
+            </div>
+            <div class="preview-item">
+                <span>总大小</span>
+                <span>${formatSize(totalSize)}</span>
+            </div>
+        `;
+    }
     
     preview.style.display = 'block';
     document.getElementById('confirmImport').disabled = false;
@@ -397,9 +435,24 @@ async function executeImport() {
     confirmBtn.textContent = '导入中...';
     
     try {
+        let body, contentType;
+        
+        if (typeof importData === 'string') {
+            // 文本格式
+            body = importData;
+            contentType = 'text/plain';
+        } else {
+            // JSON 格式
+            body = JSON.stringify(importData);
+            contentType = 'application/json';
+        }
+        
         const result = await fetchAPI(`${API_BASE}/resources/import`, {
             method: 'POST',
-            body: JSON.stringify(importData),
+            body: body,
+            headers: {
+                'Content-Type': contentType
+            }
         });
         
         if (result) {

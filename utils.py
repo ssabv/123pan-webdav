@@ -232,6 +232,76 @@ def transformShareCodeTo123FastLinkJson(rootFolderName, shareCode):
         
     return OUTPUT
 
+def parse123FastLinkLine(line: str) -> dict:
+    """
+    解析 123FastLink 单行格式
+    格式: 123FLCPV2$<hash>#<size>#<filename>
+    或: 123FLCP$<hash>#<size>#<filename>
+    返回: {"rootFolderName": filename, "shareCode": base64_encoded}
+    """
+    line = line.strip()
+    if not line:
+        return None
+    
+    # 检查前缀
+    if line.startswith("123FLCPV2$"):
+        line = line[len("123FLCPV2$"):]
+    elif line.startswith("123FLCP$"):
+        line = line[len("123FLCP$"):]
+    else:
+        return None
+    
+    # 分割: hash#size#filename
+    parts = line.split("#", 2)
+    if len(parts) != 3:
+        return None
+    
+    hash_str, size_str, filename = parts
+    
+    try:
+        size = int(size_str)
+    except ValueError:
+        return None
+    
+    # 构建文件列表 JSON
+    file_list = [{
+        "FileId": 1,
+        "FileName": filename,
+        "Type": 0,
+        "Size": size,
+        "Etag": hash_str,
+        "parentFileId": 0,
+        "AbsPath": "1"
+    }]
+    
+    # 匿名化
+    file_list = anonymizeId(file_list)
+    
+    # Base64 编码
+    share_code = base64.urlsafe_b64encode(json.dumps(file_list).encode("utf-8")).decode("utf-8")
+    
+    return {
+        "rootFolderName": filename,
+        "shareCode": share_code
+    }
+
+
+def parse123FastLinkText(text: str) -> list:
+    """
+    解析包含多行 123FastLink 格式的文本
+    返回: [{"rootFolderName": ..., "shareCode": ...}, ...]
+    """
+    results = []
+    for line in text.strip().split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        result = parse123FastLinkLine(line)
+        if result:
+            results.append(result)
+    return results
+
+
 def transform123FastLinkJsonToShareCode(json_dict):
     if not json_dict["usesBase62EtagsInExport"]: # usesBase62EtagsInExport必须为true
         raise Exception("未知格式")
