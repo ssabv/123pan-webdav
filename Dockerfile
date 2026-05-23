@@ -9,6 +9,6 @@ COPY *.py ./
 COPY settings.yaml ./
 COPY static/ ./static/
 
-EXPOSE 8000
+EXPOSE 8000 8001
 
 CMD ["python", "main.py"]
