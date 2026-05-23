@@ -1,6 +1,7 @@
 import json
 import base64
 import yaml
+import copy
 from typing import Dict, Optional, List, Tuple
 
 from models import FileNode, TYPE_DIRECTORY
@@ -70,14 +71,10 @@ class VirtualFileSystem:
     """
     def __init__(self, db_path: str):
         self.db = Pan123Database(dbpath=db_path)
+        self._tree_cache: Dict[str, List[FileNode]] = {}  # 缓存解码后的树
         load_data_into_memory(self.db)
         self.root = FileNode(id=-1, parent_id=-2, name="ROOT", type=TYPE_DIRECTORY, size=0, etag="", abs_path_str="/")
         print(f"虚拟文件系统已初始化，数据从内存读取。")
-    
-    def refresh(self):
-        """刷新内存缓存"""
-        load_data_into_memory(self.db)
-        return len(MEMORY_CACHE_BY_NAME)
         print(f"请通过WebDAV客户端挂载：\n\n")
         print(f"链接（本机访问）: http://127.0.0.1:{settings_data.get('WEBDAV_PORT')}/")
         print(f"链接（局域网访问）: http://本机的局域网IP地址:{settings_data.get('WEBDAV_PORT')}/")
@@ -86,10 +83,28 @@ class VirtualFileSystem:
         print(f"WebDAV 密码: {settings_data.get('WEBDAV_PASSWORD')}")
         
 
+    def __init__(self, db_path: str):
+        self.db = Pan123Database(dbpath=db_path)
+        self._tree_cache: Dict[str, List[FileNode]] = {}  # 缓存解码后的树
+        load_data_into_memory(self.db)
+        self.root = FileNode(id=-1, parent_id=-2, name="ROOT", type=TYPE_DIRECTORY, size=0, etag="", abs_path_str="/")
+        print(f"虚拟文件系统已初始化，数据从内存读取。")
+    
+    def refresh(self):
+        """刷新内存缓存"""
+        self._tree_cache.clear()  # 清除树缓存
+        load_data_into_memory(self.db)
+        return len(MEMORY_CACHE_BY_NAME)
+
     def _build_tree_from_share_code(self, share_code: str) -> List[FileNode]:
         """
-        解析shareCode（base64）为本地虚拟树形结构
+        解析shareCode（base64）为本地虚拟树形结构，带缓存
         """
+        # 检查缓存
+        if share_code in self._tree_cache:
+            # 返回缓存的副本（因为 children 会被修改）
+            return self._copy_tree(self._tree_cache[share_code])
+        
         try:
             json_data = json.loads(base64.urlsafe_b64decode(share_code))
         except Exception as e:
@@ -114,7 +129,15 @@ class VirtualFileSystem:
                 node.parent = nodes[node.parent_id]
             else:
                 top_level_nodes.append(node)
-        return top_level_nodes
+        
+        # 缓存结果
+        self._tree_cache[share_code] = top_level_nodes
+        return self._copy_tree(top_level_nodes)
+    
+    def _copy_tree(self, nodes: List[FileNode]) -> List[FileNode]:
+        """深拷贝节点树（因为 children 会被修改）"""
+        import copy
+        return copy.deepcopy(nodes)
 
     def get_node_by_path(self, path: str) -> Optional[FileNode]:
         """
