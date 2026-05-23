@@ -3,7 +3,7 @@ import os
 import requests
 
 from tqdm import tqdm
-from utils import getStringHash, getSearchText, transform123FastLinkJsonToShareCode
+from utils import getStringHash, getSearchText, transform123FastLinkJsonToShareCode, transform123FastLinkJsonToShareCodeByYear
 from getGlobalLogger import logger
 
 class Pan123Database:
@@ -589,7 +589,12 @@ class Pan123Database:
             elif isinstance(json_data, dict):
                 if "files" in json_data:
                     # JSON 格式 (123FastLink export)
-                    results = transform123FastLinkJsonToShareCode(json_data)
+                    # 检查是否有 commonPath 且非空，按年份拆分
+                    common_path = json_data.get("commonPath", "")
+                    if common_path and "/" in common_path:
+                        results = transform123FastLinkJsonToShareCodeByYear(json_data)
+                    else:
+                        results = transform123FastLinkJsonToShareCode(json_data)
                 elif "rootFolderName" in json_data and "shareCode" in json_data:
                     # 已经是标准格式
                     results = [json_data]
@@ -604,7 +609,12 @@ class Pan123Database:
                             results.append(parsed)
                     elif isinstance(item, dict):
                         if "files" in item:
-                            parsed = transform123FastLinkJsonToShareCode(item)
+                            # 按年份拆分
+                            common_path = item.get("commonPath", "")
+                            if common_path and "/" in common_path:
+                                parsed = transform123FastLinkJsonToShareCodeByYear(item)
+                            else:
+                                parsed = transform123FastLinkJsonToShareCode(item)
                             results.extend(parsed)
                         elif "rootFolderName" in item and "shareCode" in item:
                             results.append(item)
