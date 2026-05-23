@@ -3,7 +3,7 @@ import os
 import requests
 
 from tqdm import tqdm
-from utils import getStringHash, getSearchText
+from utils import getStringHash, getSearchText, transform123FastLinkJsonToShareCode
 from getGlobalLogger import logger
 
 class Pan123Database:
@@ -465,6 +465,144 @@ class Pan123Database:
             self.conn.rollback() # 回滚事务
             logger.error(f"更新 rootFolderName (codeHash: {codeHash}) 或其FTS索引失败: {e}", exc_info=True)
             return False
+
+    def listResources(self, page: int = 1, page_size: int = 50, search: str = ""):
+        """分页查询资源，支持搜索"""
+        if page < 1:
+            page = 1
+        offset = (page - 1) * page_size
+
+        if search:
+            search_pattern = f"%{search}%"
+            # 获取总数
+            self.database.execute(
+                "SELECT COUNT(*) FROM PAN123DATABASE WHERE rootFolderName LIKE ?",
+                (search_pattern,)
+            )
+            total = self.database.fetchone()[0]
+            # 查询数据
+            self.database.execute(
+                "SELECT codeHash, rootFolderName, visibleFlag, shareCode, timeStamp FROM PAN123DATABASE WHERE rootFolderName LIKE ? ORDER BY timeStamp DESC LIMIT ? OFFSET ?",
+                (search_pattern, page_size, offset)
+            )
+        else:
+            # 获取总数
+            self.database.execute("SELECT COUNT(*) FROM PAN123DATABASE")
+            total = self.database.fetchone()[0]
+            # 查询数据
+            self.database.execute(
+                "SELECT codeHash, rootFolderName, visibleFlag, shareCode, timeStamp FROM PAN123DATABASE ORDER BY timeStamp DESC LIMIT ? OFFSET ?",
+                (page_size, offset)
+            )
+
+        results = []
+        for row in self.database.fetchall():
+            codeHash, rootFolderName, visibleFlag, shareCode, timeStamp = row
+            results.append({
+                "codeHash": codeHash,
+                "rootFolderName": rootFolderName,
+                "visibleFlag": bool(visibleFlag) if visibleFlag is not None else None,
+                "shareCode": shareCode,
+                "timeStamp": timeStamp
+            })
+
+        total_pages = (total + page_size - 1) // page_size
+        return {
+            "items": results,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": total_pages
+        }
+
+    def getResource(self, codeHash: str):
+        """获取单个资源详情"""
+        self.database.execute(
+            "SELECT codeHash, rootFolderName, visibleFlag, shareCode, timeStamp FROM PAN123DATABASE WHERE codeHash=?",
+            (codeHash,)
+        )
+        row = self.database.fetchone()
+        if not row:
+            return None
+        codeHash, rootFolderName, visibleFlag, shareCode, timeStamp = row
+        return {
+            "codeHash": codeHash,
+            "rootFolderName": rootFolderName,
+            "visibleFlag": bool(visibleFlag) if visibleFlag is not None else None,
+            "shareCode": shareCode,
+            "timeStamp": timeStamp
+        }
+
+    def deleteResource(self, codeHash: str):
+        """删除资源"""
+        return self.deleteData(codeHash)
+
+    def getStats(self):
+        """获取统计信息"""
+        # 总数
+        self.database.execute("SELECT COUNT(*) FROM PAN123DATABASE")
+        total = self.database.fetchone()[0]
+
+        # 公开资源数
+        self.database.execute("SELECT COUNT(*) FROM PAN123DATABASE WHERE visibleFlag=1")
+        public_count = self.database.fetchone()[0]
+
+        # 私有资源数
+        self.database.execute("SELECT COUNT(*) FROM PAN123DATABASE WHERE visibleFlag=0")
+        private_count = self.database.fetchone()[0]
+
+        # 待审核资源数
+        self.database.execute("SELECT COUNT(*) FROM PAN123DATABASE WHERE visibleFlag IS NULL")
+        pending_count = self.database.fetchone()[0]
+
+        # 最新插入时间
+        self.database.execute("SELECT MAX(timeStamp) FROM PAN123DATABASE")
+        latest_time = self.database.fetchone()[0]
+
+        return {
+            "total": total,
+            "public": public_count,
+            "private": private_count,
+            "pending": pending_count,
+            "latest_time": latest_time
+        }
+
+    def importFromJson(self, json_data: dict):
+        """导入 123FastLink 格式的 JSON 数据"""
+        imported = 0
+        skipped = 0
+        errors = []
+
+        try:
+            # 使用 transform123FastLinkJsonToShareCode 转换
+            results = transform123FastLinkJsonToShareCode(json_data)
+
+            for item in results:
+                rootFolderName = item["rootFolderName"]
+                shareCode = item["shareCode"]
+                codeHash = getStringHash(shareCode)
+
+                # 检查是否已存在
+                self.database.execute("SELECT 1 FROM PAN123DATABASE WHERE codeHash=?", (codeHash,))
+                if self.database.fetchone():
+                    skipped += 1
+                    continue
+
+                # 插入数据
+                success = self.insertData(codeHash, rootFolderName, True, shareCode)
+                if success:
+                    imported += 1
+                else:
+                    errors.append(f"插入失败: {rootFolderName}")
+
+        except Exception as e:
+            errors.append(f"转换失败: {str(e)}")
+
+        return {
+            "imported": imported,
+            "skipped": skipped,
+            "errors": errors
+        }
 
     def close(self):
         if self.conn:

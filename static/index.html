@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>123Pan WebDAV 管理面板</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 顶部导航 -->
+        <header class="header">
+            <div class="header-left">
+                <h1>🎬 123Pan WebDAV</h1>
+                <span class="subtitle">资源管理面板</span>
+            </div>
+            <div class="header-right">
+                <div id="stats" class="stats">
+                    <span class="stat-item">📊 总计: <span id="stat-total">-</span></span>
+                    <span class="stat-item">✅ 公开: <span id="stat-public">-</span></span>
+                    <span class="stat-item">🔒 私有: <span id="stat-private">-</span></span>
+                </div>
+            </div>
+        </header>
+
+        <!-- 操作栏 -->
+        <div class="toolbar">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="🔍 搜索资源名称..." />
+                <button id="searchBtn" class="btn btn-primary">搜索</button>
+                <button id="clearBtn" class="btn btn-secondary">清除</button>
+            </div>
+            <div class="actions">
+                <button id="importBtn" class="btn btn-success">📥 导入 JSON</button>
+                <button id="refreshBtn" class="btn btn-secondary">🔄 刷新</button>
+            </div>
+        </div>
+
+        <!-- 资源列表 -->
+        <div class="table-container">
+            <table id="resourceTable">
+                <thead>
+                    <tr>
+                        <th class="col-name">资源名称</th>
+                        <th class="col-hash">Hash</th>
+                        <th class="col-status">状态</th>
+                        <th class="col-time">创建时间</th>
+                        <th class="col-actions">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="resourceBody">
+                    <!-- 动态填充 -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 分页 -->
+        <div class="pagination">
+            <button id="prevBtn" class="btn btn-sm" disabled>上一页</button>
+            <span id="pageInfo" class="page-info">第 1 页 / 共 1 页</span>
+            <button id="nextBtn" class="btn btn-sm" disabled>下一页</button>
+            <select id="pageSizeSelect" class="page-size-select">
+                <option value="20">20 条/页</option>
+                <option value="50" selected>50 条/页</option>
+                <option value="100">100 条/页</option>
+            </select>
+        </div>
+
+        <!-- 加载提示 -->
+        <div id="loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <span>加载中...</span>
+        </div>
+    </div>
+
+    <!-- 导入弹窗 -->
+    <div id="importModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📥 导入 JSON 数据</h2>
+                <span class="close-btn" id="closeImportModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="dropZone" class="drop-zone">
+                    <p>📁 将 JSON 文件拖拽到此处</p>
+                    <p class="hint">或点击选择文件</p>
+                    <input type="file" id="fileInput" accept=".json" style="display: none;" />
+                </div>
+                <div id="importPreview" class="import-preview" style="display: none;">
+                    <h3>文件预览</h3>
+                    <div id="previewContent"></div>
+                </div>
+                <div id="importResult" class="import-result" style="display: none;">
+                    <h3>导入结果</h3>
+                    <div id="resultContent"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="confirmImport" class="btn btn-success" disabled>确认导入</button>
+                <button id="cancelImport" class="btn btn-secondary">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 详情弹窗 -->
+    <div id="detailModal" class="modal" style="display: none;">
+        <div class="modal-content modal-lg">
+            <div class="modal-header">
+                <h2>📋 资源详情</h2>
+                <span class="close-btn" id="closeDetailModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="detailContent"></div>
+            </div>
+            <div class="modal-footer">
+                <button id="copyShareCode" class="btn btn-primary">复制分享码</button>
+                <button id="closeDetail" class="btn btn-secondary">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 确认删除弹窗 -->
+    <div id="deleteModal" class="modal" style="display: none;">
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h2>⚠️ 确认删除</h2>
+                <span class="close-btn" id="closeDeleteModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p>确定要删除以下资源吗？此操作不可恢复。</p>
+                <p id="deleteTarget" class="delete-target"></p>
+            </div>
+            <div class="modal-footer">
+                <button id="confirmDelete" class="btn btn-danger">确认删除</button>
+                <button id="cancelDelete" class="btn btn-secondary">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
