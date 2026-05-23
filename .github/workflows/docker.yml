@@ -28,4 +28,4 @@ jobs:
           push: true
           tags: |
             ghcr.io/${{ github.actor }}/123pan-webdav:latest
-            ghcr.io/${{ github.actor }}/123pan-webdav:v2.1.0
+            ghcr.io/${{ github.actor }}/123pan-webdav:v2.2.0
