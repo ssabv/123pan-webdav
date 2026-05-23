@@ -480,9 +480,10 @@ async function executeImport() {
             resultContent.innerHTML = html;
             resultDiv.style.display = 'block';
             
-            // 刷新列表
-            loadResources();
-            loadStats();
+            // 刷新缓存和列表
+            await fetchAPI(`${API_BASE}/refresh`, { method: 'POST' });
+            await loadResources();
+            await loadStats();
         }
     } catch (error) {
         alert('导入失败: ' + error.message);
@@ -518,9 +519,21 @@ function initEventListeners() {
     });
     
     // 刷新
-    document.getElementById('refreshBtn').addEventListener('click', () => {
-        loadResources();
-        loadStats();
+    document.getElementById('refreshBtn').addEventListener('click', async () => {
+        const btn = document.getElementById('refreshBtn');
+        btn.disabled = true;
+        btn.textContent = '刷新中...';
+        
+        try {
+            // 先刷新缓存
+            await fetchAPI(`${API_BASE}/refresh`, { method: 'POST' });
+            // 再加载数据
+            await loadResources();
+            await loadStats();
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '🔄 刷新';
+        }
     });
     
     // 分页
