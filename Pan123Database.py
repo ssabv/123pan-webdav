@@ -649,15 +649,16 @@ class Pan123Database:
         
         print(f"[getShareCodeStructure] shareCode 长度: {len(code)}", flush=True)
         
-        # 解码 base64（兼容各种格式）
-        code_stripped = code.replace('\n', '').replace('\r', '').replace(' ', '')
-        code_padded = code_stripped + '=' * (-len(code_stripped) % 4)
-        
+        # 解码 base64（使用 URL-safe 格式，与主程序 file_system.py 保持一致）
         try:
-            raw_bytes = _base64.b64decode(code_padded)
-        except Exception as e:
-            print(f"[getShareCodeStructure] base64解码失败: {e}", flush=True)
-            return {"root": rootFolderName, "folders": [], "total_files": 0}
+            raw_bytes = _base64.urlsafe_b64decode(code)
+        except Exception:
+            try:
+                code_stripped = code.replace('\n', '').replace('\r', '').replace(' ', '')
+                raw_bytes = _base64.urlsafe_b64decode(code_stripped)
+            except Exception as e2:
+                print(f"[getShareCodeStructure] base64解码失败: {e2}", flush=True)
+                return {"root": rootFolderName, "folders": [], "total_files": 0}
         
         print(f"[getShareCodeStructure] 解码后 {len(raw_bytes)} 字节, 前4字节: {raw_bytes[:4].hex()}", flush=True)
         
