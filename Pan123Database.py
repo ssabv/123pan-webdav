@@ -612,11 +612,35 @@ class Pan123Database:
         import base64 as _base64
         from collections import defaultdict as _defaultdict
         
+        # 先尝试精确匹配
         self.database.execute(
             "SELECT shareCode FROM PAN123DATABASE WHERE rootFolderName=? AND visibleFlag=1",
             (rootFolderName,)
         )
         row = self.database.fetchone()
+        
+        # 如果没找到，尝试不加 visibleFlag 条件
+        if not row:
+            self.database.execute(
+                "SELECT shareCode, visibleFlag FROM PAN123DATABASE WHERE rootFolderName=?",
+                (rootFolderName,)
+            )
+            row2 = self.database.fetchone()
+            if row2:
+                print(f"[getShareCodeStructure] {rootFolderName}: visibleFlag={row2[1]}（被过滤）")
+            else:
+                # 尝试 LIKE 查询看有没有近似匹配
+                self.database.execute(
+                    "SELECT rootFolderName FROM PAN123DATABASE WHERE rootFolderName LIKE ? LIMIT 5",
+                    (f"%{rootFolderName[:6]}%",)
+                )
+                similar = self.database.fetchall()
+                print(f"[getShareCodeStructure] {rootFolderName}: 未找到，数据库中类似条目: {[r[0] for r in similar]}")
+        
+        # 如果没找到（visibleFlag!=1），用 row2 的数据
+        if not row and row2:
+            row = row2
+            
         if not row:
             return {"root": rootFolderName, "folders": [], "total_files": 0}
         
