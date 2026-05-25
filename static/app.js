@@ -950,17 +950,20 @@ function setBucketRoot(folderName, btn) {
     } else {
         bucketRoot = folderName;
         // 自动勾选该文件夹
-        const cb = document.querySelector(`.bucket-checkbox[data-name="${CSS.escape(folderName)}"]`);
-        if (cb && !cb.checked) {
-            cb.checked = true;
-            updateBucketSelectedCount();
-            // 也勾选所属 decade 的父复选框
-            const decade = cb.dataset.decade;
-            if (decade) {
-                const siblings = document.querySelectorAll(`.bucket-checkbox[data-decade="${CSS.escape(decade)}"]`);
-                const allChecked = Array.from(siblings).every(s => s.checked);
-                const parentCb = document.querySelector(`.decade-checkbox[data-decade="${CSS.escape(decade)}"]`);
-                if (parentCb) parentCb.checked = allChecked;
+        const allCbs = document.querySelectorAll('.bucket-checkbox');
+        for (const cb of allCbs) {
+            if (cb.dataset.name === folderName && !cb.checked) {
+                cb.checked = true;
+                updateBucketSelectedCount();
+                // 也勾选所属 decade 的父复选框
+                const decade = cb.dataset.decade;
+                if (decade) {
+                    const siblings = document.querySelectorAll(`.bucket-checkbox[data-decade="${decade}"]`);
+                    const allChecked = Array.from(siblings).every(s => s.checked);
+                    const parentCb = document.querySelector(`.decade-checkbox[data-decade="${decade}"]`);
+                    if (parentCb) parentCb.checked = allChecked;
+                }
+                break;
             }
         }
     }
@@ -1005,12 +1008,6 @@ async function applyBuckets() {
     }
     
     const buckets = selectedNames.length === total ? [] : selectedNames;
-    
-    // 收集子目录分桶状态
-    const subfolderBuckets = {};
-    for (const name of selectedNames) {
-        if (subfolderBucketState[name]) subfolderBuckets[name] = true;
-    }
     
     const btn = document.getElementById('applyBuckets');
     btn.disabled = true;
