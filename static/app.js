@@ -6,7 +6,7 @@ let totalPages = 1;
 let currentDeleteHash = null;
 let bucketData = null;  // 分桶数据缓存
 let bucketPathFilters = {};  // {rootFolderName: [path_prefixes]}
-let bucketRoot = '';  // 桶根文件夹名
+let bucketRoots = new Set();  // 桶根文件夹集合
 
 // API 基础路径
 const API_BASE = '/api';
@@ -661,7 +661,7 @@ async function openBucketModal() {
         
         bucketData = data;
         // 还原 bucket_root 和 path_filters 状态
-        bucketRoot = data.bucket_root || '';
+        bucketRoots = new Set(data.bucket_roots || []);
         const activeSet = new Set(data.active || []);
         const hasActiveFilter = activeSet.size > 0;
         bucketPathFilters = data.path_filters || {};
@@ -736,11 +736,11 @@ function renderBucketTree(folders, activeSet) {
                     <button class="bucket-expand-btn" onclick="toggleFoldersExpand('${escapeHtml(folder.name)}', this)" title="展开查看内部子文件夹">
                         ${hasPathFilter ? '📂' : '▶'}
                     </button>
-                    <button class="bucket-root-btn ${bucketRoot === folder.name ? 'active' : ''}" 
+                    <button class="bucket-root-btn ${bucketRoots.has(folder.name) ? 'active' : ''}" 
                         data-root="${escapeHtml(folder.name)}"
                         onclick="setBucketRoot('${escapeHtml(folder.name)}', this)" 
                         title="选为桶根：其子目录按名 hash 重新分配到 256 个桶（仅 SPLIT_FOLDER 模式生效）">
-                        ${bucketRoot === folder.name ? '🎯 当前桶根' : '🎯 设为桶根'}
+                        ${bucketRoots.has(folder.name) ? '🎯 当前桶根' : '🎯 设为桶根'}
                     </button>
                 </div>
                 <div class="bucket-subfolders" id="sub-${escapeHtml(folder.name).replace(/[^a-zA-Z0-9\u4e00-\u9fff]/g, '_')}" style="display:none;"></div>
@@ -772,11 +772,11 @@ function renderBucketTree(folders, activeSet) {
                     <button class="bucket-expand-btn" onclick="toggleFoldersExpand('${escapeHtml(folder.name)}', this)" title="展开查看内部子文件夹">
                         ${hasPathFilter ? '📂' : '▶'}
                     </button>
-                    <button class="bucket-root-btn ${bucketRoot === folder.name ? 'active' : ''}" 
+                    <button class="bucket-root-btn ${bucketRoots.has(folder.name) ? 'active' : ''}" 
                         data-root="${escapeHtml(folder.name)}"
                         onclick="setBucketRoot('${escapeHtml(folder.name)}', this)" 
                         title="选为桶根：其子目录按名 hash 重新分配到 256 个桶（仅 SPLIT_FOLDER 模式生效）">
-                        ${bucketRoot === folder.name ? '🎯 当前桶根' : '🎯 设为桶根'}
+                        ${bucketRoots.has(folder.name) ? '🎯 当前桶根' : '🎯 设为桶根'}
                     </button>
                 </div>
                 <div class="bucket-subfolders" id="sub-${escapeHtml(folder.name).replace(/[^a-zA-Z0-9\u4e00-\u9fff]/g, '_')}" style="display:none;"></div>
@@ -862,11 +862,11 @@ async function autoExpandFolder(folderName, subDiv, btn) {
                         <span class="bucket-name">${escapeHtml(f.name)}</span>
                         <span class="bucket-count">${f.file_count.toLocaleString()} 个文件${f.children_count ? ' | ' + f.children_count + '个子目录' : ''}</span>
                     </label>
-                    <button class="bucket-root-btn ${bucketRoot === subPath ? 'active' : ''}" 
+                    <button class="bucket-root-btn ${bucketRoots.has(subPath) ? 'active' : ''}" 
                         data-root="${escapeHtml(subPath)}"
                         onclick="event.stopPropagation(); setBucketRoot('${escapeHtml(subPath)}', this)" 
                         title="将 '${escapeHtml(f.name)}' 设为桶根">
-                        ${bucketRoot === subPath ? '🎯 当前桶根' : '🎯 设为桶根'}
+                        ${bucketRoots.has(subPath) ? '🎯 当前桶根' : '🎯 设为桶根'}
                     </button>
                 </div>
             `;
@@ -956,10 +956,10 @@ document.addEventListener('change', (e) => {
 });
 
 function setBucketRoot(folderName, btn) {
-    if (bucketRoot === folderName) {
-        bucketRoot = '';
+    if (bucketRoots.has(folderName)) {
+        bucketRoots.delete(folderName);
     } else {
-        bucketRoot = folderName;
+        bucketRoots.add(folderName);
         // 如果是顶层文件夹（无 '/'），自动勾选它的 checkbox
         if (!folderName.includes('/')) {
             const allCbs = document.querySelectorAll('.bucket-checkbox');
@@ -980,7 +980,7 @@ function setBucketRoot(folderName, btn) {
         }
     }
     document.querySelectorAll('.bucket-root-btn').forEach(b => {
-        if (b.dataset.root === bucketRoot) {
+        if (bucketRoots.has(b.dataset.root)) {
             b.classList.add('active');
             b.textContent = '🎯 当前桶根';
         } else {
@@ -1030,7 +1030,7 @@ async function applyBuckets() {
             body: JSON.stringify({ 
                 buckets: buckets,
                 path_filters: Object.keys(pathFilters).length > 0 ? pathFilters : null,
-                bucket_root: bucketRoot || null
+                bucket_roots: bucketRoots.size > 0 ? [...bucketRoots] : null
             }),
         });
         
