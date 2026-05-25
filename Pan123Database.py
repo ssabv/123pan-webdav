@@ -731,46 +731,73 @@ class Pan123Database:
         
         print(f"[getShareCodeStructure] 共 {len(data)} 个文件项", flush=True)
         
-        # 按顶层路径分组
-        dirs = _defaultdict(lambda: {"file_count": 0, "total_size": 0, "children": _defaultdict(lambda: {"count": 0})})
+        # 构建 FileId→节点 映射，节点类型: dir（目录） / file（文件）
+        nodes = {}  # FileId → {name, type, parentFileId, size, children_ids}
         for item in data:
-            fn = item.get('FileName', '')
-            parts = fn.split('/')
-            top = parts[0] if '/' in fn else '(根目录)'
-            dirs[top]["file_count"] += 1
-            dirs[top]["total_size"] += int(item.get("Size", 0) or 0)
-            
-            if len(parts) > 1:
-                sub = parts[1]
-                dirs[top]["children"][sub]["count"] += 1
+            fid = item.get('FileId', 0)
+            nodes[fid] = {
+                'name': item.get('FileName', ''),
+                'type': item.get('Type', 0),  # 0=file, 1=dir
+                'parent_id': item.get('parentFileId', 0),
+                'size': int(item.get('Size', 0) or 0),
+                'children_ids': [],
+            }
         
-        if len(dirs) <= 1 and next(iter(dirs))[0] == '(根目录)':
-            sample = [item.get('FileName', '?')[:120] for item in data[:5]]
-            keys = list(data[0].keys()) if data else []
-            print(f"[getShareCodeStructure] 无子目录，样例: {sample}", flush=True)
-            print(f"[getShareCodeStructure] JSON字段: {keys}", flush=True)
+        # 建立父子关系
+        for fid, node in nodes.items():
+            pid = node['parent_id']
+            if pid in nodes and pid != fid:
+                nodes[pid]['children_ids'].append(fid)
+        
+        # 找顶级节点（parent_id 不存在于 nodes 中的）
+        top_nodes = [(fid, n) for fid, n in nodes.items() if n['parent_id'] not in nodes or n['parent_id'] == fid]
+        
+        # 递归统计目录下文件数和子目录
+        def count_dir(fid):
+            """递归统计该节点下的文件数、总大小、子目录列表"""
+            node = nodes[fid]
+            files = 0
+            total_sz = 0
+            subdirs = []  # [(name, count)]
+            for cid in node['children_ids']:
+                child = nodes[cid]
+                if child['type'] == 1:  # 子目录
+                    sub_files, sub_sz, _ = count_dir(cid)
+                    subdirs.append((child['name'], sub_files))
+                    files += sub_files
+                    total_sz += sub_sz
+                else:  # 文件
+                    files += 1
+                    total_sz += child['size']
+            return files, total_sz, subdirs
         
         result = []
-        for name, info in sorted(dirs.items()):
-            item = {
-                "name": name,
-                "file_count": info["file_count"],
-                "total_size": info["total_size"],
-            }
-            children_list = sorted(info["children"].items())
-            if 1 <= len(children_list) <= 50:
-                item["children"] = [
-                    {"name": cn, "count": ci["count"]}
-                    for cn, ci in children_list
-                ]
-            elif len(children_list) > 50:
-                item["children_count"] = len(children_list)
-            result.append(item)
+        for fid, node in top_nodes:
+            if node['type'] == 1:  # 只显示目录
+                files, total_sz, subdirs = count_dir(fid)
+                item = {
+                    "name": node['name'],
+                    "file_count": files,
+                    "total_size": total_sz,
+                }
+                if 1 <= len(subdirs) <= 50:
+                    item["children"] = [
+                        {"name": sn, "count": sc}
+                        for sn, sc in sorted(subdirs)
+                    ]
+                elif len(subdirs) > 50:
+                    item["children_count"] = len(subdirs)
+                result.append(item)
+        
+        if not result and top_nodes:
+            # 没有目录类型节点，显示样例
+            sample = [(n['name'][:80], n['type']) for _, n in list(top_nodes)[:5]]
+            print(f"[getShareCodeStructure] 无目录，顶级节点: {sample}", flush=True)
         
         return {
             "root": rootFolderName,
             "folders": result,
-            "total_files": len(data)
+            "total_files": sum(item["file_count"] for item in result)
         }
 
     def getStats(self):
