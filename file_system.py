@@ -22,19 +22,29 @@ if BUCKET_FOLDERS is None:
 # 当前激活的桶列表（运行时可修改）
 ACTIVE_BUCKETS = list(BUCKET_FOLDERS)
 
+# 路径筛选配置: {rootFolderName: [path_prefixes]}
+# 空列表 = 该桶内全选, 缺失 = 不筛选
+_PATH_FILTERS: Dict[str, List[str]] = {}
+
+def _get_path_filters():
+    """获取当前路径筛选配置"""
+    return dict(_PATH_FILTERS)
+
 # 初始化缓存结构
 MEMORY_CACHE_BY_NAME: Dict[str, Tuple[str, str]] = {}
 MEMORY_CACHE_BY_BUCKET: Dict[str, List[str]] = {}
 MEMORY_CACHE_NAMES_LIST: List[str] = []  # 平铺模式下的全部 rootFolderName
 HASH_BUCKET_NAMES: List[str] = [f"{i:02x}" for i in range(256)]
 
-def load_data_into_memory(db: Pan123Database, bucket_filter: list = None):
+def load_data_into_memory(db: Pan123Database, bucket_filter: list = None, path_filters: dict = None):
     """
-    数据加载和分组（分桶/平铺）
+    数据加载和分组（分桶/平铺）+ 路径筛选
     
     Args:
         db: 数据库实例
         bucket_filter: 桶名过滤列表，为 None 时加载全部，为列表时只加载匹配的桶
+        path_filters: {rootFolderName: [path_prefixes]} 每桶内的路径筛选,
+                      空列表 = 该桶内全选, None = 不筛选
     """
     global ACTIVE_BUCKETS
     
@@ -42,6 +52,10 @@ def load_data_into_memory(db: Pan123Database, bucket_filter: list = None):
         ACTIVE_BUCKETS = list(bucket_filter)
     
     active = ACTIVE_BUCKETS
+    # 存储路径筛选配置
+    if path_filters is not None:
+        _PATH_FILTERS.clear()
+        _PATH_FILTERS.update(path_filters)
     
     if active:
         print(f"分桶模式：只加载以下桶: {active}")
@@ -109,25 +123,16 @@ class VirtualFileSystem:
         print(f"WebDAV 用户名: {settings_data.get('WEBDAV_USERNAME')}")
         print(f"WebDAV 密码: {settings_data.get('WEBDAV_PASSWORD')}")
     
-    def refresh(self, bucket_filter: list = None):
+    def refresh(self, bucket_filter: list = None, path_filters: dict = None):
         """刷新内存缓存
         
         Args:
             bucket_filter: 桶名过滤列表，为 None 时保持当前设置，为空列表 [] 时加载全部
+            path_filters: {rootFolderName: [path_prefixes]} 每桶内的路径筛选
         """
         self._tree_cache.clear()  # 清除树缓存
-        load_data_into_memory(self.db, bucket_filter=bucket_filter)
+        load_data_into_memory(self.db, bucket_filter=bucket_filter, path_filters=path_filters)
         return len(MEMORY_CACHE_BY_NAME)
-
-    def __init__(self, db_path: str):
-        self.db = Pan123Database(dbpath=db_path)
-        self._tree_cache: Dict[str, List[FileNode]] = {}  # 缓存解码后的树
-        load_data_into_memory(self.db)
-        self.root = FileNode(id=-1, parent_id=-2, name="ROOT", type=TYPE_DIRECTORY, size=0, etag="", abs_path_str="/")
-        print(f"虚拟文件系统已初始化，数据从内存读取。")
-    
-    def refresh(self):
-        """刷新内存缓存"""
         self._tree_cache.clear()  # 清除树缓存
         load_data_into_memory(self.db)
         return len(MEMORY_CACHE_BY_NAME)
@@ -276,6 +281,21 @@ class VirtualFileSystem:
 
         # 构建分享虚拟目录
         top_level_nodes = self._build_tree_from_share_code(shareCode)
+        
+        # 应用路径筛选（双层分桶）
+        if root_folder_name in _PATH_FILTERS and _PATH_FILTERS[root_folder_name]:
+            allowed_prefixes = set(_PATH_FILTERS[root_folder_name])
+            top_level_nodes = [
+                n for n in top_level_nodes
+                if any(
+                    n.name == p or n.name.startswith(p + '/') or p == n.name
+                    for p in allowed_prefixes
+                )
+            ]
+            # 重新设置 parent 关系（因为部分节点被移除了）
+            for node in top_level_nodes:
+                node.parent_id = None  # 断开原 parent，使其成为顶层
+        
         share_root_node = FileNode(
             id=int(codeHash[:8], 16),
             parent_id=parent_id,

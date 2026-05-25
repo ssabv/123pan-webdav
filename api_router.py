@@ -137,7 +137,8 @@ async def search_resources(
 
 class BucketUpdateRequest(BaseModel):
     """更新桶配置请求"""
-    buckets: List[str]  # 要激活的桶名列表，空列表 = 加载全部
+    buckets: List[str] = []  # 要激活的桶名列表，空列表 = 加载全部
+    path_filters: Optional[dict] = None  # {rootFolderName: [path_prefixes]} 每桶内的路径筛选
 
 
 @router.get("/buckets")
@@ -158,7 +159,20 @@ async def list_bucket_folders(credentials=Depends(verify_credentials)):
     return JSONResponse(content={
         "folders": folders,
         "active": ACTIVE_BUCKETS,
+        "path_filters": _get_path_filters(),
     })
+
+
+@router.get("/buckets/structure")
+async def get_bucket_structure(
+    folder: str,
+    credentials=Depends(verify_credentials)
+):
+    """获取指定根文件夹的内部目录结构（shareCode 解析结果）"""
+    if not folder:
+        raise HTTPException(status_code=400, detail="folder 参数必填")
+    structure = db.getShareCodeStructure(folder)
+    return JSONResponse(content=structure)
 
 
 @router.put("/buckets")
@@ -172,7 +186,8 @@ async def update_buckets(
     """
     try:
         bucket_filter = request.buckets if request.buckets else []
-        count = vfs.refresh(bucket_filter=bucket_filter)
+        path_filters = request.path_filters or {}
+        count = vfs.refresh(bucket_filter=bucket_filter, path_filters=path_filters)
         
         # 同步更新 settings.yaml 中的配置
         try:

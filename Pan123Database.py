@@ -599,6 +599,70 @@ class Pan123Database:
         self.database.execute(sql, params)
         return self.database.fetchall()
 
+    def getShareCodeStructure(self, rootFolderName: str):
+        """解析 shareCode，返回内部顶层文件夹结构
+        
+        Args:
+            rootFolderName: 根文件夹名
+            
+        Returns:
+            {"folders": [{"name": "子文件夹1", "file_count": 100, "total_size": 12345, "subdir_count": 5, "children": [...]}]}
+        """
+        import json as _json
+        import base64 as _base64
+        from collections import defaultdict as _defaultdict
+        
+        self.database.execute(
+            "SELECT shareCode FROM PAN123DATABASE WHERE rootFolderName=? AND visibleFlag=1",
+            (rootFolderName,)
+        )
+        row = self.database.fetchone()
+        if not row:
+            return {"root": rootFolderName, "folders": [], "total_files": 0}
+        
+        code = row[0]
+        try:
+            data = _json.loads(_base64.b64decode(code).decode('utf-8'))
+        except Exception:
+            return {"root": rootFolderName, "folders": [], "total_files": 0}
+        
+        # 按顶层路径分组
+        dirs = _defaultdict(lambda: {"file_count": 0, "total_size": 0, "children": _defaultdict(lambda: {"count": 0})})
+        for item in data:
+            fn = item.get('FileName', '')
+            parts = fn.split('/')
+            top = parts[0] if '/' in fn else '(根目录)'
+            dirs[top]["file_count"] += 1
+            dirs[top]["total_size"] += item.get("Size", 0)
+            
+            if len(parts) > 1:
+                sub = parts[1]
+                dirs[top]["children"][sub]["count"] += 1
+        
+        result = []
+        for name, info in sorted(dirs.items()):
+            item = {
+                "name": name,
+                "file_count": info["file_count"],
+                "total_size": info["total_size"],
+            }
+            # 只包含第二层子目录（如果不多于 50 个）
+            children_list = sorted(info["children"].items())
+            if 1 <= len(children_list) <= 50:
+                item["children"] = [
+                    {"name": cn, "count": ci["count"]}
+                    for cn, ci in children_list
+                ]
+            elif len(children_list) > 50:
+                item["children_count"] = len(children_list)
+            result.append(item)
+        
+        return {
+            "root": rootFolderName,
+            "folders": result,
+            "total_files": len(data)
+        }
+
     def getStats(self):
         """获取统计信息"""
         # 总数

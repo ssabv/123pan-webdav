@@ -683,6 +683,66 @@ tr:hover {
     padding-left: 42px;
 }
 
+/* 展开子文件夹按钮 */
+.bucket-item-row {
+    display: flex;
+    align-items: center;
+    transition: background 0.15s;
+}
+
+.bucket-item-row:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.bucket-expand-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px 8px;
+    font-size: 12px;
+    line-height: 1;
+    border-radius: 4px;
+    transition: all 0.15s;
+    flex-shrink: 0;
+}
+
+.bucket-expand-btn:hover {
+    background: rgba(59, 130, 246, 0.1);
+    color: var(--accent-blue);
+}
+
+/* 子文件夹列表 */
+.bucket-subfolders {
+    border-left: 2px solid var(--border-color);
+    margin-left: 52px;
+    padding: 4px 0;
+}
+
+.bucket-sub-item {
+    padding: 6px 15px 6px 8px !important;
+    font-size: 13px;
+}
+
+.bucket-sub-item .bucket-name {
+    font-size: 13px;
+}
+
+.bucket-sub-controls {
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 2px;
+}
+
+.bucket-sub-controls label {
+    color: var(--text-muted);
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
 /* 响应式 */
 @media (max-width: 768px) {
     .header {
