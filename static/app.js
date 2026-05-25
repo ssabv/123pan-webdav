@@ -753,12 +753,19 @@ function renderBucketTree(folders, activeSet) {
                 <div class="bucket-group-children">
         `;
         others.forEach(folder => {
+            const hasPathFilter = bucketPathFilters[folder.name] && bucketPathFilters[folder.name].length > 0;
             html += `
-                <label class="bucket-item">
-                    <input type="checkbox" class="bucket-checkbox" data-name="${escapeHtml(folder.name)}" data-decade="other" checked />
-                    <span class="bucket-name">${escapeHtml(folder.name)}</span>
-                    <span class="bucket-count">${folder.count.toLocaleString()} 条</span>
-                </label>
+                <div class="bucket-item-row" data-folder="${escapeHtml(folder.name)}">
+                    <label class="bucket-item">
+                        <input type="checkbox" class="bucket-checkbox" data-name="${escapeHtml(folder.name)}" data-decade="other" checked />
+                        <span class="bucket-name">${escapeHtml(folder.name)}</span>
+                        <span class="bucket-count">${folder.count.toLocaleString()} 条</span>
+                    </label>
+                    <button class="bucket-expand-btn" onclick="toggleFoldersExpand('${escapeHtml(folder.name)}', this)" title="展开查看内部子文件夹">
+                        ${hasPathFilter ? '📂' : '▶'}
+                    </button>
+                </div>
+                <div class="bucket-subfolders" id="sub-${escapeHtml(folder.name).replace(/[^a-zA-Z0-9\u4e00-\u9fff]/g, '_')}" style="display:none;"></div>
             `;
         });
         html += `</div></div>`;
