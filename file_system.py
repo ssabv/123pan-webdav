@@ -119,6 +119,19 @@ class VirtualFileSystem:
         load_data_into_memory(self.db, bucket_filter=bucket_filter)
         return len(MEMORY_CACHE_BY_NAME)
 
+    def __init__(self, db_path: str):
+        self.db = Pan123Database(dbpath=db_path)
+        self._tree_cache: Dict[str, List[FileNode]] = {}  # 缓存解码后的树
+        load_data_into_memory(self.db)
+        self.root = FileNode(id=-1, parent_id=-2, name="ROOT", type=TYPE_DIRECTORY, size=0, etag="", abs_path_str="/")
+        print(f"虚拟文件系统已初始化，数据从内存读取。")
+    
+    def refresh(self):
+        """刷新内存缓存"""
+        self._tree_cache.clear()  # 清除树缓存
+        load_data_into_memory(self.db)
+        return len(MEMORY_CACHE_BY_NAME)
+
     def _build_tree_from_share_code(self, share_code: str) -> List[FileNode]:
         """
         解析shareCode（base64）为本地虚拟树形结构，带缓存
