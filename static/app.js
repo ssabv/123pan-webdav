@@ -681,6 +681,10 @@ async function openBucketModal() {
         }
         
         renderBucketTree(data.folders, activeSet);
+        
+        // 自动展开所有根文件夹的内部结构
+        const names = data.folders.map(f => f.name);
+        await expandAllFolders(names);
     } catch (error) {
         list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--accent-red);">加载失败: ${error.message}</div>`;
     }
@@ -773,6 +777,17 @@ function renderBucketTree(folders, activeSet) {
             }
         }
     });
+}
+
+async function expandAllFolders(names) {
+    for (const name of names) {
+        const safeId = name.replace(/[^a-zA-Z0-9\u4e00-\u9fff]/g, '_');
+        const subDiv = document.getElementById('sub-' + safeId);
+        if (subDiv) {
+            await autoExpandFolder(name, subDiv, null);
+        }
+    }
+    updateBucketSelectedCount();
 }
 
 async function toggleFoldersExpand(folderName, btn) {
