@@ -155,12 +155,16 @@ async def list_buckets(credentials=Depends(verify_credentials)):
 @router.get("/buckets/folders")
 async def list_bucket_folders(credentials=Depends(verify_credentials)):
     """列出所有根文件夹名（精确桶选择用）"""
-    folders = db.listRootFolderNames()
-    return JSONResponse(content={
-        "folders": folders,
-        "active": ACTIVE_BUCKETS,
-        "path_filters": _get_path_filters(),
-    })
+    import traceback
+    try:
+        folders = db.listRootFolderNames()
+        return JSONResponse(content={
+            "folders": folders,
+            "active": ACTIVE_BUCKETS,
+            "path_filters": _get_path_filters(),
+        })
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"detail": f"{type(e).__name__}: {e}\n{traceback.format_exc()}"})
 
 
 @router.get("/buckets/structure")
@@ -169,9 +173,13 @@ async def get_bucket_structure(
     credentials=Depends(verify_credentials)
 ):
     """获取指定根文件夹的内部目录结构（shareCode 解析结果）"""
+    import traceback
     if not folder:
         raise HTTPException(status_code=400, detail="folder 参数必填")
-    structure = db.getShareCodeStructure(folder)
+    try:
+        structure = db.getShareCodeStructure(folder)
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"detail": f"{type(e).__name__}: {e}\n{traceback.format_exc()}"})
     return JSONResponse(content=structure)
 
 
