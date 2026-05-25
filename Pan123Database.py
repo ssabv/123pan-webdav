@@ -723,6 +723,12 @@ class Pan123Database:
             print(f"[getShareCodeStructure] 原始字节前40: {raw_bytes[:40].hex()}", flush=True)
             return {"root": rootFolderName, "folders": [], "total_files": 0}
         
+        if not isinstance(data, list):
+            print(f"[getShareCodeStructure] 数据不是数组，类型: {type(data).__name__}", flush=True)
+            if isinstance(data, dict):
+                print(f"[getShareCodeStructure] dict keys: {list(data.keys())[:10]}", flush=True)
+            return {"root": rootFolderName, "folders": [], "total_files": 0}
+        
         print(f"[getShareCodeStructure] 共 {len(data)} 个文件项", flush=True)
         
         # 按顶层路径分组
