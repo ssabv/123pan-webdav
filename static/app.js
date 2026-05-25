@@ -50,9 +50,9 @@ async function loadStats() {
     try {
         const stats = await fetchAPI(`${API_BASE}/stats`);
         if (stats) {
-            document.getElementById('stat-total').textContent = stats.total.toLocaleString();
-            document.getElementById('stat-public').textContent = stats.public.toLocaleString();
-            document.getElementById('stat-private').textContent = stats.private.toLocaleString();
+            document.getElementById('stat-total').textContent = (stats.total ?? 0).toLocaleString();
+            document.getElementById('stat-public').textContent = (stats.public ?? 0).toLocaleString();
+            document.getElementById('stat-private').textContent = (stats.private ?? 0).toLocaleString();
         }
     } catch (error) {
         console.error('加载统计失败:', error);
@@ -718,7 +718,7 @@ function renderBucketTree(folders, activeSet) {
                             onchange="toggleGroupChildren(this)" />
                         <span class="bucket-group-name">📅 ${group.decade} (${group.minYear}-${group.maxYear})</span>
                     </label>
-                    <span class="bucket-group-count">${group.totalCount.toLocaleString()} 条 | ${group.folders.length} 个文件夹</span>
+                    <span class="bucket-group-count">${(group.totalCount ?? 0).toLocaleString()} 条 | ${group.folders.length} 个文件夹</span>
                 </div>
                 <div class="bucket-group-children">
         `;
@@ -731,7 +731,7 @@ function renderBucketTree(folders, activeSet) {
                     <label class="bucket-item">
                         <input type="checkbox" class="bucket-checkbox" data-name="${escapeHtml(folder.name)}" data-decade="${group.decade}" ${isChecked ? 'checked' : ''} />
                         <span class="bucket-name">${escapeHtml(folder.name)}</span>
-                        <span class="bucket-count">${folder.count.toLocaleString()} 条</span>
+                        <span class="bucket-count">${(folder.count ?? 0).toLocaleString()} 条</span>
                     </label>
                     <button class="bucket-expand-btn" onclick="toggleFoldersExpand('${escapeHtml(folder.name)}', this)" title="展开查看内部子文件夹">
                         ${hasPathFilter ? '📂' : '▶'}
@@ -767,7 +767,7 @@ function renderBucketTree(folders, activeSet) {
                     <label class="bucket-item">
                         <input type="checkbox" class="bucket-checkbox" data-name="${escapeHtml(folder.name)}" data-decade="other" checked />
                         <span class="bucket-name">${escapeHtml(folder.name)}</span>
-                        <span class="bucket-count">${folder.count.toLocaleString()} 条</span>
+                        <span class="bucket-count">${(folder.count ?? 0).toLocaleString()} 条</span>
                     </label>
                     <button class="bucket-expand-btn" onclick="toggleFoldersExpand('${escapeHtml(folder.name)}', this)" title="展开查看内部子文件夹">
                         ${hasPathFilter ? '📂' : '▶'}
@@ -860,7 +860,7 @@ async function autoExpandFolder(folderName, subDiv, btn) {
                     <label class="bucket-item bucket-sub-item" data-parent="${escapeHtml(folderName)}" style="flex:1;">
                         <input type="checkbox" class="bucket-sub-checkbox" data-parent="${escapeHtml(folderName)}" data-name="${escapeHtml(f.name)}" ${checked ? 'checked' : ''} />
                         <span class="bucket-name">${escapeHtml(f.name)}</span>
-                        <span class="bucket-count">${f.file_count.toLocaleString()} 个文件${f.children_count ? ' | ' + f.children_count + '个子目录' : ''}</span>
+                        <span class="bucket-count">${(f.file_count ?? 0).toLocaleString()} 个文件${f.children_count ? ' | ' + f.children_count + '个子目录' : ''}</span>
                     </label>
                     <button class="bucket-root-btn ${bucketRoots.has(subPath) ? 'active' : ''}" 
                         data-root="${escapeHtml(subPath)}"
@@ -1036,7 +1036,7 @@ async function applyBuckets() {
         
         if (result) {
             document.getElementById('bucketModal').style.display = 'none';
-            alert('✅ ' + result.message + '\n加载条目: ' + result.total_loaded.toLocaleString());
+            alert('✅ ' + result.message + '\n加载条目: ' + (result.total_loaded ?? 0).toLocaleString());
             
             await loadResources();
             await loadStats();
