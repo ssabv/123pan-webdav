@@ -616,6 +616,73 @@ tr:hover {
     white-space: nowrap;
 }
 
+/* 分桶树形分组 */
+.bucket-group {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.bucket-group:last-child {
+    border-bottom: none;
+}
+
+.bucket-group-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 15px;
+    cursor: pointer;
+    transition: background 0.15s;
+    user-select: none;
+    font-size: 14px;
+    background: rgba(59, 130, 246, 0.05);
+}
+
+.bucket-group-header:hover {
+    background: rgba(59, 130, 246, 0.12);
+}
+
+.bucket-group-arrow {
+    font-size: 10px;
+    color: var(--text-muted);
+    transition: transform 0.2s;
+    width: 12px;
+    display: inline-block;
+}
+
+.bucket-group-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+
+.bucket-group-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent-purple);
+    cursor: pointer;
+}
+
+.bucket-group-name {
+    font-weight: 600;
+    color: var(--accent-blue);
+}
+
+.bucket-group-count {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.bucket-group-children {
+    /* 默认展开 */
+}
+
+.bucket-group-children .bucket-item {
+    padding-left: 42px;
+}
+
 /* 响应式 */
 @media (max-width: 768px) {
     .header {

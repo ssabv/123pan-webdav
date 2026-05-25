@@ -614,6 +614,39 @@ function initBucketListeners() {
     document.getElementById('bucketInvert').addEventListener('click', invertBuckets);
 }
 
+// 按十年分组文件夹
+function groupFoldersByDecade(folders) {
+    const groups = {};
+    const others = [];
+    
+    folders.forEach(folder => {
+        // 尝试从名称末尾提取年份
+        const match = folder.name.match(/(\d{4})$/);
+        if (match) {
+            const year = parseInt(match[1]);
+            const decade = Math.floor(year / 10) * 10;
+            const groupKey = decade + 's';
+            if (!groups[groupKey]) {
+                groups[groupKey] = { decade: groupKey, minYear: decade, maxYear: decade + 9, folders: [] };
+            }
+            groups[groupKey].folders.push(folder);
+        } else {
+            others.push(folder);
+        }
+    });
+    
+    // 排序：按年代降序（新的在前）
+    const sorted = Object.values(groups).sort((a, b) => b.decade - a.decade);
+    
+    // 每个年代内按名称排序
+    sorted.forEach(g => g.folders.sort((a, b) => a.name.localeCompare(b.name)));
+    sorted.forEach(g => {
+        g.totalCount = g.folders.reduce((sum, f) => sum + f.count, 0);
+    });
+    
+    return { groups: sorted, others };
+}
+
 async function openBucketModal() {
     const modal = document.getElementById('bucketModal');
     const list = document.getElementById('bucketList');
@@ -628,38 +661,125 @@ async function openBucketModal() {
         const activeSet = new Set(data.active || []);
         const hasActiveFilter = activeSet.size > 0;
         
-        document.getElementById('bucketStatus').textContent = 
-            hasActiveFilter 
-                ? `已过滤：${data.active.join(', ')}`
-                : '全部加载（未过滤）';
+        // 构建状态文本
+        if (hasActiveFilter) {
+            const grouped = groupFoldersByDecade(data.active.map(n => ({ name: n, count: 0 })));
+            const decadeNames = grouped.groups.map(g => g.decade).join(', ');
+            document.getElementById('bucketStatus').innerHTML = 
+                `🔍 已过滤：<strong>${decadeNames}</strong>（共 ${data.active.length} 个文件夹）`;
+        } else {
+            document.getElementById('bucketStatus').innerHTML = '📂 全部加载（未过滤）';
+        }
         
-        renderBucketList(data.folders, activeSet);
+        renderBucketTree(data.folders, activeSet);
     } catch (error) {
         list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--accent-red);">加载失败: ${error.message}</div>`;
     }
 }
 
-function renderBucketList(folders, activeSet) {
+function renderBucketTree(folders, activeSet) {
     const list = document.getElementById('bucketList');
     const hasActiveFilter = activeSet.size > 0;
+    const { groups, others } = groupFoldersByDecade(folders);
     
-    list.innerHTML = folders.map(folder => {
-        const isChecked = hasActiveFilter ? activeSet.has(folder.name) : true;
-        return `
-            <label class="bucket-item">
-                <input type="checkbox" class="bucket-checkbox" data-name="${escapeHtml(folder.name)}" ${isChecked ? 'checked' : ''} />
-                <span class="bucket-name">${escapeHtml(folder.name)}</span>
-                <span class="bucket-count">${folder.count.toLocaleString()} 条</span>
-            </label>
+    if (groups.length === 0 && others.length === 0) {
+        list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-secondary);">暂无文件夹</div>';
+        return;
+    }
+    
+    let html = '';
+    
+    // 渲染分组
+    groups.forEach(group => {
+        const allChecked = group.folders.every(f => hasActiveFilter ? activeSet.has(f.name) : true);
+        const someChecked = group.folders.some(f => hasActiveFilter ? activeSet.has(f.name) : true);
+        const groupCheckState = allChecked ? 'checked' : (someChecked ? 'checked' : '');
+        const indeterminateState = !allChecked && someChecked ? 'indeterminate' : '';
+        
+        html += `
+            <div class="bucket-group">
+                <div class="bucket-group-header" onclick="toggleBucketGroup(this)" data-decade="${group.decade}">
+                    <span class="bucket-group-arrow">▼</span>
+                    <label class="bucket-group-label" onclick="event.stopPropagation()">
+                        <input type="checkbox" class="bucket-group-checkbox" 
+                            data-decade="${group.decade}" ${groupCheckState}
+                            onchange="toggleGroupChildren(this)" />
+                        <span class="bucket-group-name">📅 ${group.decade} (${group.minYear}-${group.maxYear})</span>
+                    </label>
+                    <span class="bucket-group-count">${group.totalCount.toLocaleString()} 条 | ${group.folders.length} 个文件夹</span>
+                </div>
+                <div class="bucket-group-children">
         `;
-    }).join('');
+        
+        group.folders.forEach(folder => {
+            const isChecked = hasActiveFilter ? activeSet.has(folder.name) : true;
+            html += `
+                <label class="bucket-item">
+                    <input type="checkbox" class="bucket-checkbox" data-name="${escapeHtml(folder.name)}" data-decade="${group.decade}" ${isChecked ? 'checked' : ''} />
+                    <span class="bucket-name">${escapeHtml(folder.name)}</span>
+                    <span class="bucket-count">${folder.count.toLocaleString()} 条</span>
+                </label>
+            `;
+        });
+        
+        html += `</div></div>`;
+    });
     
+    // 渲染无年份的文件夹
+    if (others.length > 0) {
+        html += `
+            <div class="bucket-group">
+                <div class="bucket-group-header" onclick="toggleBucketGroup(this)" data-decade="other">
+                    <span class="bucket-group-arrow">▼</span>
+                    <span class="bucket-group-name" style="margin-left:4px;">📁 其他</span>
+                    <span class="bucket-group-count">${others.length} 个文件夹</span>
+                </div>
+                <div class="bucket-group-children">
+        `;
+        others.forEach(folder => {
+            html += `
+                <label class="bucket-item">
+                    <input type="checkbox" class="bucket-checkbox" data-name="${escapeHtml(folder.name)}" data-decade="other" checked />
+                    <span class="bucket-name">${escapeHtml(folder.name)}</span>
+                    <span class="bucket-count">${folder.count.toLocaleString()} 条</span>
+                </label>
+            `;
+        });
+        html += `</div></div>`;
+    }
+    
+    list.innerHTML = html;
+    updateBucketSelectedCount();
+}
+
+function toggleBucketGroup(header) {
+    const children = header.nextElementSibling;
+    const arrow = header.querySelector('.bucket-group-arrow');
+    if (children.style.display === 'none') {
+        children.style.display = 'block';
+        arrow.textContent = '▼';
+    } else {
+        children.style.display = 'none';
+        arrow.textContent = '▶';
+    }
+}
+
+function toggleGroupChildren(groupCheckbox) {
+    const decade = groupCheckbox.dataset.decade;
+    const checked = groupCheckbox.checked;
+    document.querySelectorAll(`.bucket-checkbox[data-decade="${decade}"]`).forEach(cb => {
+        cb.checked = checked;
+    });
     updateBucketSelectedCount();
 }
 
 function setAllBuckets(checked) {
     document.querySelectorAll('.bucket-checkbox').forEach(cb => {
         cb.checked = checked;
+    });
+    // 同步 group checkbox
+    document.querySelectorAll('.bucket-group-checkbox').forEach(gcb => {
+        gcb.checked = checked;
     });
     updateBucketSelectedCount();
 }
@@ -668,6 +788,14 @@ function invertBuckets() {
     document.querySelectorAll('.bucket-checkbox').forEach(cb => {
         cb.checked = !cb.checked;
     });
+    // 同步 group checkbox
+    document.querySelectorAll('.bucket-group-checkbox').forEach(gcb => {
+        const decade = gcb.dataset.decade;
+        const children = document.querySelectorAll(`.bucket-checkbox[data-decade="${decade}"]`);
+        const allChecked = Array.from(children).every(c => c.checked);
+        const someChecked = Array.from(children).some(c => c.checked);
+        gcb.checked = allChecked || someChecked;
+    });
     updateBucketSelectedCount();
 }
 
@@ -675,6 +803,15 @@ function updateBucketSelectedCount() {
     const checked = document.querySelectorAll('.bucket-checkbox:checked').length;
     const total = document.querySelectorAll('.bucket-checkbox').length;
     document.getElementById('bucketSelectedCount').textContent = `${checked} / ${total}`;
+    
+    // 同步 group checkbox 状态
+    document.querySelectorAll('.bucket-group-checkbox').forEach(gcb => {
+        const decade = gcb.dataset.decade;
+        const children = document.querySelectorAll(`.bucket-checkbox[data-decade="${decade}"]`);
+        if (children.length === 0) return;
+        const allChecked = Array.from(children).every(c => c.checked);
+        gcb.checked = allChecked;
+    });
 }
 
 // 监听 checkbox 变化
