@@ -737,6 +737,7 @@ function renderBucketTree(folders, activeSet) {
                         ${hasPathFilter ? '📂' : '▶'}
                     </button>
                     <button class="bucket-root-btn ${bucketRoot === folder.name ? 'active' : ''}" 
+                        data-root="${escapeHtml(folder.name)}"
                         onclick="setBucketRoot('${escapeHtml(folder.name)}', this)" 
                         title="选为桶根：其子目录按名 hash 重新分配到 256 个桶（仅 SPLIT_FOLDER 模式生效）">
                         ${bucketRoot === folder.name ? '🎯 当前桶根' : '🎯 设为桶根'}
@@ -772,6 +773,7 @@ function renderBucketTree(folders, activeSet) {
                         ${hasPathFilter ? '📂' : '▶'}
                     </button>
                     <button class="bucket-root-btn ${bucketRoot === folder.name ? 'active' : ''}" 
+                        data-root="${escapeHtml(folder.name)}"
                         onclick="setBucketRoot('${escapeHtml(folder.name)}', this)" 
                         title="选为桶根：其子目录按名 hash 重新分配到 256 个桶（仅 SPLIT_FOLDER 模式生效）">
                         ${bucketRoot === folder.name ? '🎯 当前桶根' : '🎯 设为桶根'}
@@ -852,12 +854,21 @@ async function autoExpandFolder(folderName, subDiv, btn) {
         let shtml = '';
         structure.folders.forEach(f => {
             const checked = hasCustomFilter ? currentFilters.includes(f.name) : true;
+            const subPath = folderName + '/' + f.name;
             shtml += `
-                <label class="bucket-item bucket-sub-item" data-parent="${escapeHtml(folderName)}">
-                    <input type="checkbox" class="bucket-sub-checkbox" data-parent="${escapeHtml(folderName)}" data-name="${escapeHtml(f.name)}" ${checked ? 'checked' : ''} />
-                    <span class="bucket-name">${escapeHtml(f.name)}</span>
-                    <span class="bucket-count">${f.file_count.toLocaleString()} 个文件${f.children_count ? ' | ' + f.children_count + '个子目录' : ''}</span>
-                </label>
+                <div class="bucket-item-row" style="padding-left: 0;">
+                    <label class="bucket-item bucket-sub-item" data-parent="${escapeHtml(folderName)}" style="flex:1;">
+                        <input type="checkbox" class="bucket-sub-checkbox" data-parent="${escapeHtml(folderName)}" data-name="${escapeHtml(f.name)}" ${checked ? 'checked' : ''} />
+                        <span class="bucket-name">${escapeHtml(f.name)}</span>
+                        <span class="bucket-count">${f.file_count.toLocaleString()} 个文件${f.children_count ? ' | ' + f.children_count + '个子目录' : ''}</span>
+                    </label>
+                    <button class="bucket-root-btn ${bucketRoot === subPath ? 'active' : ''}" 
+                        data-root="${escapeHtml(subPath)}"
+                        onclick="event.stopPropagation(); setBucketRoot('${escapeHtml(subPath)}', this)" 
+                        title="将 '${escapeHtml(f.name)}' 设为桶根">
+                        ${bucketRoot === subPath ? '🎯 当前桶根' : '🎯 设为桶根'}
+                    </button>
+                </div>
             `;
         });
         
@@ -949,25 +960,25 @@ function setBucketRoot(folderName, btn) {
         bucketRoot = '';
     } else {
         bucketRoot = folderName;
-        // 自动勾选该文件夹
-        const allCbs = document.querySelectorAll('.bucket-checkbox');
-        for (const cb of allCbs) {
-            if (cb.dataset.name === folderName && !cb.checked) {
-                cb.checked = true;
-                updateBucketSelectedCount();
-                // 也勾选所属 decade 的父复选框
-                const decade = cb.dataset.decade;
-                if (decade) {
-                    const siblings = document.querySelectorAll(`.bucket-checkbox[data-decade="${decade}"]`);
-                    const allChecked = Array.from(siblings).every(s => s.checked);
-                    const parentCb = document.querySelector(`.decade-checkbox[data-decade="${decade}"]`);
-                    if (parentCb) parentCb.checked = allChecked;
+        // 如果是顶层文件夹（无 '/'），自动勾选它的 checkbox
+        if (!folderName.includes('/')) {
+            const allCbs = document.querySelectorAll('.bucket-checkbox');
+            for (const cb of allCbs) {
+                if (cb.dataset.name === folderName && !cb.checked) {
+                    cb.checked = true;
+                    updateBucketSelectedCount();
+                    const decade = cb.dataset.decade;
+                    if (decade) {
+                        const siblings = document.querySelectorAll(`.bucket-checkbox[data-decade="${decade}"]`);
+                        const allChecked = Array.from(siblings).every(s => s.checked);
+                        const parentCb = document.querySelector(`.decade-checkbox[data-decade="${decade}"]`);
+                        if (parentCb) parentCb.checked = allChecked;
+                    }
+                    break;
                 }
-                break;
             }
         }
     }
-    // 更新所有按钮状态
     document.querySelectorAll('.bucket-root-btn').forEach(b => {
         if (b.dataset.root === bucketRoot) {
             b.classList.add('active');

@@ -129,83 +129,108 @@ def load_data_into_memory(db: Pan123Database, bucket_filter: list = None, path_f
         MEMORY_CACHE_BY_BUCKET[bucket_key].sort()
     
     # ========== 桶根重分桶: 子目录按名 hash 重新分配到 256 个桶 ==========
-    if BUCKET_ROOT and MEMORY_CACHE_BY_NAME.get(BUCKET_ROOT):
-        print(f"桶根模式: 将 '{BUCKET_ROOT}' 的子目录按名 hash 重新分桶 ...", flush=True)
-        shareCode, src_codeHash = MEMORY_CACHE_BY_NAME[BUCKET_ROOT]
+    if BUCKET_ROOT:
+        # 支持嵌套路径: "父文件夹/子文件夹/..."
+        bucket_root_parts = BUCKET_ROOT.split('/')
+        parent_name = bucket_root_parts[0]
+        sub_path = bucket_root_parts[1:]  # 剩余路径段
         
-        try:
-            items = json.loads(base64.urlsafe_b64decode(shareCode))
-        except Exception as e:
-            print(f"桶根 shareCode 解析失败: {e}")
-        else:
-            # 构建 FileId → FileNode 映射
-            nodes_by_id: dict = {}
-            for it in items:
-                node = FileNode(
-                    id=it.get('FileId', 0),
-                    parent_id=it.get('parentFileId', 0),
-                    name=it.get('FileName', ''),
-                    type=it.get('Type', 0),
-                    size=int(it.get('Size', 0)) if str(it.get('Size', '0')).lstrip('-').isdigit() else 0,
-                    etag=it.get('Etag', ''),
-                    abs_path_str=it.get('AbsPath', '')
-                )
-                nodes_by_id[node.id] = node
+        if parent_name in MEMORY_CACHE_BY_NAME:
+            print(f"桶根模式: '{BUCKET_ROOT}' → 子目录按名 hash 重新分桶 ...", flush=True)
+            shareCode, src_codeHash = MEMORY_CACHE_BY_NAME[parent_name]
             
-            # 连接父子关系
-            for node in nodes_by_id.values():
-                pid = node.parent_id
-                if pid in nodes_by_id and pid != node.id:
-                    nodes_by_id[pid].children.append(node)
-                    node.parent = nodes_by_id[pid]
-            
-            # 找桶根节点（跳过同名 wrapper 层）
-            def _find_bucket_root_node():
-                roots = [n for n in nodes_by_id.values() 
-                         if n.parent_id not in nodes_by_id or n.parent_id == n.id]
-                for rn in roots:
-                    if rn.type == TYPE_DIRECTORY and rn.name == BUCKET_ROOT:
-                        return rn
-                return None
-            
-            root_node = _find_bucket_root_node()
-            if root_node is None:
-                # 根节点名不匹配，直接用顶级节点
-                root_node_candidates = [n for n in nodes_by_id.values()
-                                       if (n.parent_id not in nodes_by_id or n.parent_id == n.id)
-                                       and n.type == TYPE_DIRECTORY]
-                if root_node_candidates:
-                    root_node = root_node_candidates[0]
-                    print(f"桶根名不匹配，使用顶级节点: {root_node.name}", flush=True)
-                else:
-                    print(f"找不到桶根节点", flush=True)
-                    root_node = None
-            
-            if root_node:
-                # 重新分配子目录到 256 个桶
-                MEMORY_CACHE_BY_BUCKET.clear()
-                for bn in HASH_BUCKET_NAMES:
-                    MEMORY_CACHE_BY_BUCKET[bn] = []
-                BUCKET_ROOT_CHILD_TREES.clear()
-                
-                for child in root_node.children:
-                    if child.type == TYPE_DIRECTORY:
-                        # 按子目录名 hash 分桶
-                        bucket_idx = hash(child.name) % 256
-                        bucket_name = f"{bucket_idx:02x}"
-                        MEMORY_CACHE_BY_BUCKET[bucket_name].append(child.name)
-                        BUCKET_ROOT_CHILD_TREES[child.name] = child
-                
-                # 排序
-                for bn in HASH_BUCKET_NAMES:
-                    MEMORY_CACHE_BY_BUCKET[bn].sort()
-                
-                # 计算统计
-                total_children = len(BUCKET_ROOT_CHILD_TREES)
-                nonempty = sum(1 for bn in HASH_BUCKET_NAMES if MEMORY_CACHE_BY_BUCKET[bn])
-                print(f"桶根重分桶完成: {total_children} 个子目录 → {nonempty} 个非空桶", flush=True)
+            try:
+                items = json.loads(base64.urlsafe_b64decode(shareCode))
+            except Exception as e:
+                print(f"桶根 shareCode 解析失败 ({parent_name}): {e}")
             else:
-                print(f"未找到桶根节点 '{BUCKET_ROOT}'，保持原有分桶", flush=True)
+                # 构建 FileId → FileNode 映射
+                nodes_by_id: dict = {}
+                for it in items:
+                    size_raw = it.get('Size', 0)
+                    try:
+                        size = int(size_raw) if isinstance(size_raw, (int, str)) and str(size_raw).lstrip('-').isdigit() else 0
+                    except (ValueError, TypeError):
+                        size = 0
+                    node = FileNode(
+                        id=it.get('FileId', 0),
+                        parent_id=it.get('parentFileId', 0),
+                        name=it.get('FileName', ''),
+                        type=it.get('Type', 0),
+                        size=size,
+                        etag=it.get('Etag', ''),
+                        abs_path_str=it.get('AbsPath', '')
+                    )
+                    nodes_by_id[node.id] = node
+                
+                # 连接父子关系
+                for node in nodes_by_id.values():
+                    pid = node.parent_id
+                    if pid in nodes_by_id and pid != node.id:
+                        nodes_by_id[pid].children.append(node)
+                        node.parent = nodes_by_id[pid]
+                
+                # 找入口节点
+                def _find_top_level(nodes, name):
+                    """在顶级节点中找匹配名称的目录节点"""
+                    roots = [n for n in nodes.values()
+                             if n.parent_id not in nodes or n.parent_id == n.id]
+                    for rn in roots:
+                        if rn.type == TYPE_DIRECTORY and rn.name == name:
+                            return rn
+                    # 回退: 用第一个目录节点
+                    for rn in roots:
+                        if rn.type == TYPE_DIRECTORY:
+                            return rn
+                    return None
+                
+                current = _find_top_level(nodes_by_id, parent_name)
+                if current is None:
+                    print(f"桶根: 找不到入口节点 '{parent_name}'", flush=True)
+                else:
+                    # 跳过同名 wrapper 层
+                    if current.name == parent_name and len(current.children) == 1 and current.children[0].type == TYPE_DIRECTORY and current.children[0].name == parent_name:
+                        current = current.children[0]
+                        print(f"桶根: 跳过 '{parent_name}' 同名 wrapper 层", flush=True)
+                    
+                    # 沿 sub_path 往下走
+                    for seg in sub_path:
+                        found = None
+                        for child in current.children:
+                            if child.name == seg and child.type == TYPE_DIRECTORY:
+                                found = child
+                                break
+                        if found:
+                            current = found
+                        else:
+                            print(f"桶根: 找不到子路径 '{seg}' 在 '{current.name}' 下", flush=True)
+                            current = None
+                            break
+                    
+                    if current:
+                        # 重新分配子目录到 256 个桶
+                        MEMORY_CACHE_BY_BUCKET.clear()
+                        for bn in HASH_BUCKET_NAMES:
+                            MEMORY_CACHE_BY_BUCKET[bn] = []
+                        BUCKET_ROOT_CHILD_TREES.clear()
+                        
+                        for child in current.children:
+                            if child.type == TYPE_DIRECTORY:
+                                bucket_idx = hash(child.name) % 256
+                                bucket_name = f"{bucket_idx:02x}"
+                                MEMORY_CACHE_BY_BUCKET[bucket_name].append(child.name)
+                                BUCKET_ROOT_CHILD_TREES[child.name] = child
+                        
+                        for bn in HASH_BUCKET_NAMES:
+                            MEMORY_CACHE_BY_BUCKET[bn].sort()
+                        
+                        total_children = len(BUCKET_ROOT_CHILD_TREES)
+                        nonempty = sum(1 for bn in HASH_BUCKET_NAMES if MEMORY_CACHE_BY_BUCKET[bn])
+                        print(f"桶根重分桶完成: '{BUCKET_ROOT}' → {total_children} 个子目录 → {nonempty} 个非空桶", flush=True)
+                    else:
+                        print(f"桶根: 无法定位 '{BUCKET_ROOT}'，保持原有分桶", flush=True)
+        else:
+            print(f"桶根: '{parent_name}' 不在数据库中，保持原有分桶", flush=True)
     
     # 非 SPLIT_FOLDER 的子目录分桶（保留原有功能）: 构建 SUBFOLDER_MAP
     if not SPLIT_FOLDER:
