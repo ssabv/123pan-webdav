@@ -14,27 +14,50 @@ with open("settings.yaml", "r", encoding="utf-8") as f:
 # 决定是否分桶
 SPLIT_FOLDER = settings_data.get('SPLIT_FOLDER')
 
+# 分桶过滤配置
+BUCKET_FOLDERS = settings_data.get('BUCKET_FOLDERS', [])
+if BUCKET_FOLDERS is None:
+    BUCKET_FOLDERS = []
+
+# 当前激活的桶列表（运行时可修改）
+ACTIVE_BUCKETS = list(BUCKET_FOLDERS)
+
 # 初始化缓存结构
 MEMORY_CACHE_BY_NAME: Dict[str, Tuple[str, str]] = {}
 MEMORY_CACHE_BY_BUCKET: Dict[str, List[str]] = {}
 MEMORY_CACHE_NAMES_LIST: List[str] = []  # 平铺模式下的全部 rootFolderName
 HASH_BUCKET_NAMES: List[str] = [f"{i:02x}" for i in range(256)]
 
-def load_data_into_memory(db: Pan123Database):
+def load_data_into_memory(db: Pan123Database, bucket_filter: list = None):
     """
     数据加载和分组（分桶/平铺）
+    
+    Args:
+        db: 数据库实例
+        bucket_filter: 桶名过滤列表，为 None 时加载全部，为列表时只加载匹配的桶
     """
-    print("开始从数据库加载所有公开分享数据到内存...")
-    page = 1
-    all_shares = []
-
-    while True:
-        print(f"正在读取分享数据 (批次 {page}) ...")
-        shares_page, is_end_page = db.listData(visibleFlag=True, page=page, limit=10000)
-        all_shares.extend(shares_page)
-        if is_end_page:
-            break
-        page += 1
+    global ACTIVE_BUCKETS
+    
+    if bucket_filter is not None:
+        ACTIVE_BUCKETS = list(bucket_filter)
+    
+    active = ACTIVE_BUCKETS
+    
+    if active:
+        print(f"分桶模式：只加载以下桶: {active}")
+        all_shares_raw = db.listDataByBuckets(active, visibleFlag=True)
+        all_shares = [(row[0], row[1], row[2]) for row in all_shares_raw]
+    else:
+        print("加载全部数据...")
+        page = 1
+        all_shares = []
+        while True:
+            print(f"正在读取分享数据 (批次 {page}) ...")
+            shares_page, is_end_page = db.listData(visibleFlag=True, page=page, limit=10000)
+            all_shares.extend(shares_page)
+            if is_end_page:
+                break
+            page += 1
     
     print(f"共获取 {len(all_shares)} 条分享记录，构建缓存 ...")
     # 清空所有缓存结构
@@ -75,25 +98,25 @@ class VirtualFileSystem:
         load_data_into_memory(self.db)
         self.root = FileNode(id=-1, parent_id=-2, name="ROOT", type=TYPE_DIRECTORY, size=0, etag="", abs_path_str="/")
         print(f"虚拟文件系统已初始化，数据从内存读取。")
+        if ACTIVE_BUCKETS:
+            print(f"分桶过滤: {ACTIVE_BUCKETS}")
+        else:
+            print("加载模式: 全部")
         print(f"请通过WebDAV客户端挂载：\n\n")
         print(f"链接（本机访问）: http://127.0.0.1:{settings_data.get('WEBDAV_PORT')}/")
         print(f"链接（局域网访问）: http://本机的局域网IP地址:{settings_data.get('WEBDAV_PORT')}/")
         print(f"链接（公网访问）: http://本机的公网IP地址:{settings_data.get('WEBDAV_PORT')}/")
         print(f"WebDAV 用户名: {settings_data.get('WEBDAV_USERNAME')}")
         print(f"WebDAV 密码: {settings_data.get('WEBDAV_PASSWORD')}")
-        
-
-    def __init__(self, db_path: str):
-        self.db = Pan123Database(dbpath=db_path)
-        self._tree_cache: Dict[str, List[FileNode]] = {}  # 缓存解码后的树
-        load_data_into_memory(self.db)
-        self.root = FileNode(id=-1, parent_id=-2, name="ROOT", type=TYPE_DIRECTORY, size=0, etag="", abs_path_str="/")
-        print(f"虚拟文件系统已初始化，数据从内存读取。")
     
-    def refresh(self):
-        """刷新内存缓存"""
+    def refresh(self, bucket_filter: list = None):
+        """刷新内存缓存
+        
+        Args:
+            bucket_filter: 桶名过滤列表，为 None 时保持当前设置，为空列表 [] 时加载全部
+        """
         self._tree_cache.clear()  # 清除树缓存
-        load_data_into_memory(self.db)
+        load_data_into_memory(self.db, bucket_filter=bucket_filter)
         return len(MEMORY_CACHE_BY_NAME)
 
     def _build_tree_from_share_code(self, share_code: str) -> List[FileNode]:

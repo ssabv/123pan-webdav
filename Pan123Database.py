@@ -537,6 +537,68 @@ class Pan123Database:
         """删除资源"""
         return self.deleteData(codeHash)
 
+    def listBuckets(self):
+        """列出所有可用的桶（根文件夹名前缀）
+        
+        从 rootFolderName 中提取前缀作为桶名，例如：
+        - "原盘电影合集-1915" -> 桶名 "原盘电影合集"
+        - "1、动漫电影" -> 桶名 "1、动漫电影"
+        
+        返回: [{"bucket": 桶名, "count": 条目数}, ...]
+        """
+        self.database.execute("SELECT rootFolderName FROM PAN123DATABASE WHERE visibleFlag=1")
+        rows = self.database.fetchall()
+        
+        bucket_counts = {}
+        for (rootFolderName,) in rows:
+            # 尝试提取前缀：按 "-" 或 "、" 或 "/" 分割取第一段
+            if "-" in rootFolderName:
+                bucket = rootFolderName.rsplit("-", 1)[0]
+            else:
+                bucket = rootFolderName
+            
+            if bucket not in bucket_counts:
+                bucket_counts[bucket] = 0
+            bucket_counts[bucket] += 1
+        
+        result = [{"bucket": k, "count": v} for k, v in sorted(bucket_counts.items())]
+        return result
+
+    def listRootFolderNames(self):
+        """列出所有根文件夹名（用于精确选择桶）"""
+        self.database.execute(
+            "SELECT rootFolderName, COUNT(*) as cnt FROM PAN123DATABASE WHERE visibleFlag=1 GROUP BY rootFolderName ORDER BY rootFolderName"
+        )
+        rows = self.database.fetchall()
+        return [{"name": row[0], "count": row[1]} for row in rows]
+
+    def listDataByBuckets(self, bucket_names: list, visibleFlag: bool = True):
+        """按桶名（rootFolderName 前缀）过滤查询数据
+        
+        Args:
+            bucket_names: 桶名列表，匹配 rootFolderName 以这些前缀开头的记录
+            visibleFlag: 是否只查询公开数据
+        
+        返回: [(codeHash, rootFolderName, timeStamp), ...]
+        """
+        if not bucket_names:
+            return self.listData(visibleFlag=visibleFlag, page=1, limit=999999)[0]
+        
+        # 构造 LIKE 查询条件
+        conditions = []
+        params = []
+        for name in bucket_names:
+            conditions.append("rootFolderName LIKE ?")
+            params.append(f"{name}%")
+        
+        where_clause = " AND (" + " OR ".join(conditions) + ")"
+        if visibleFlag:
+            where_clause = " AND visibleFlag=1" + where_clause
+        
+        sql = f"SELECT codeHash, rootFolderName, timeStamp FROM PAN123DATABASE WHERE 1=1{where_clause} ORDER BY rootFolderName"
+        self.database.execute(sql, params)
+        return self.database.fetchall()
+
     def getStats(self):
         """获取统计信息"""
         # 总数

@@ -530,6 +530,92 @@ tr:hover {
     color: var(--accent-red);
 }
 
+.btn-info {
+    background: var(--accent-purple);
+    color: white;
+}
+
+.btn-info:hover:not(:disabled) {
+    background: #7c3aed;
+}
+
+/* 分桶管理 */
+.bucket-info {
+    margin-bottom: 15px;
+    padding: 12px;
+    background: rgba(59, 130, 246, 0.1);
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.bucket-info strong {
+    color: var(--accent-blue);
+}
+
+.bucket-actions-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.bucket-selected-count {
+    margin-left: auto;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.bucket-list {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-card);
+}
+
+.bucket-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 15px;
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: background 0.15s;
+    font-size: 14px;
+}
+
+.bucket-item:last-child {
+    border-bottom: none;
+}
+
+.bucket-item:hover {
+    background: var(--bg-hover);
+}
+
+.bucket-item input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent-blue);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.bucket-name {
+    flex: 1;
+    color: var(--text-primary);
+    word-break: break-all;
+}
+
+.bucket-count {
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
 /* 响应式 */
 @media (max-width: 768px) {
     .header {

@@ -1,10 +1,10 @@
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from typing import Optional, Union
+from typing import Optional, Union, List
 import yaml
 
-from file_system import vfs
+from file_system import vfs, ACTIVE_BUCKETS, BUCKET_FOLDERS
 from auth import verify_credentials
 from fastapi import Depends
 
@@ -112,7 +112,8 @@ async def refresh_cache(credentials=Depends(verify_credentials)):
         count = vfs.refresh()
         return JSONResponse(content={
             "message": "缓存已刷新",
-            "total": count
+            "total": count,
+            "active_buckets": ACTIVE_BUCKETS if ACTIVE_BUCKETS else ["全部"]
         })
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -130,3 +131,63 @@ async def search_resources(
         raise HTTPException(status_code=400, detail="搜索关键词不能为空")
     result = db.listResources(page=page, page_size=page_size, search=keyword)
     return JSONResponse(content=result)
+
+
+# ==================== 分桶管理 API ====================
+
+class BucketUpdateRequest(BaseModel):
+    """更新桶配置请求"""
+    buckets: List[str]  # 要激活的桶名列表，空列表 = 加载全部
+
+
+@router.get("/buckets")
+async def list_buckets(credentials=Depends(verify_credentials)):
+    """列出所有可用的桶（按 rootFolderName 前缀分组）"""
+    buckets = db.listBuckets()
+    return JSONResponse(content={
+        "buckets": buckets,
+        "active": ACTIVE_BUCKETS,
+        "config_default": BUCKET_FOLDERS,
+    })
+
+
+@router.get("/buckets/folders")
+async def list_bucket_folders(credentials=Depends(verify_credentials)):
+    """列出所有根文件夹名（精确桶选择用）"""
+    folders = db.listRootFolderNames()
+    return JSONResponse(content={
+        "folders": folders,
+        "active": ACTIVE_BUCKETS,
+    })
+
+
+@router.put("/buckets")
+async def update_buckets(
+    request: BucketUpdateRequest,
+    credentials=Depends(verify_credentials)
+):
+    """更新激活的桶列表并刷新缓存
+    
+    buckets: 要激活的桶名列表，空列表 = 加载全部
+    """
+    try:
+        bucket_filter = request.buckets if request.buckets else []
+        count = vfs.refresh(bucket_filter=bucket_filter)
+        
+        # 同步更新 settings.yaml 中的配置
+        try:
+            with open("settings.yaml", "r", encoding="utf-8") as f:
+                settings = yaml.safe_load(f.read())
+            settings["BUCKET_FOLDERS"] = bucket_filter
+            with open("settings.yaml", "w", encoding="utf-8") as f:
+                yaml.dump(settings, f, allow_unicode=True, default_flow_style=False)
+        except Exception as e:
+            print(f"警告：更新 settings.yaml 失败: {e}")
+        
+        return JSONResponse(content={
+            "message": "桶配置已更新并刷新缓存",
+            "active_buckets": bucket_filter if bucket_filter else ["全部"],
+            "total_loaded": count
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

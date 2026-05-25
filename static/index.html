@@ -31,6 +31,7 @@
                 <button id="clearBtn" class="btn btn-secondary">清除</button>
             </div>
             <div class="actions">
+                <button id="bucketBtn" class="btn btn-info">🗂️ 分桶管理</button>
                 <button id="importBtn" class="btn btn-success">📥 导入资源</button>
                 <button id="refreshBtn" class="btn btn-secondary">🔄 刷新</button>
             </div>
@@ -133,6 +134,35 @@
             <div class="modal-footer">
                 <button id="confirmDelete" class="btn btn-danger">确认删除</button>
                 <button id="cancelDelete" class="btn btn-secondary">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 分桶管理弹窗 -->
+    <div id="bucketModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🗂️ 分桶管理</h2>
+                <span class="close-btn" id="closeBucketModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="bucket-info">
+                    <p>💡 选择要加载到 WebDAV 的文件夹。取消勾选可减少内存占用、加快启动速度。</p>
+                    <p>当前状态：<strong id="bucketStatus">-</strong></p>
+                </div>
+                <div class="bucket-actions-bar">
+                    <button id="bucketSelectAll" class="btn btn-sm btn-secondary">全选</button>
+                    <button id="bucketDeselectAll" class="btn btn-sm btn-secondary">全不选</button>
+                    <button id="bucketInvert" class="btn btn-sm btn-secondary">反选</button>
+                    <span class="bucket-selected-count">已选 <span id="bucketSelectedCount">0</span> 个</span>
+                </div>
+                <div id="bucketList" class="bucket-list">
+                    <!-- 动态填充 -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="applyBuckets" class="btn btn-success">✅ 应用并刷新</button>
+                <button id="cancelBuckets" class="btn btn-secondary">取消</button>
             </div>
         </div>
     </div>

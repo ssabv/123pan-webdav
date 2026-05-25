@@ -4,6 +4,7 @@ let pageSize = 50;
 let currentSearch = '';
 let totalPages = 1;
 let currentDeleteHash = null;
+let bucketData = null;  // 分桶数据缓存
 
 // API 基础路径
 const API_BASE = '/api';
@@ -592,6 +593,127 @@ function initEventListeners() {
 document.addEventListener('DOMContentLoaded', () => {
     initEventListeners();
     initImport();
+    initBucketListeners();
     loadStats();
     loadResources();
 });
+
+// ==================== 分桶管理 ====================
+
+function initBucketListeners() {
+    document.getElementById('bucketBtn').addEventListener('click', openBucketModal);
+    document.getElementById('closeBucketModal').addEventListener('click', () => {
+        document.getElementById('bucketModal').style.display = 'none';
+    });
+    document.getElementById('cancelBuckets').addEventListener('click', () => {
+        document.getElementById('bucketModal').style.display = 'none';
+    });
+    document.getElementById('applyBuckets').addEventListener('click', applyBuckets);
+    document.getElementById('bucketSelectAll').addEventListener('click', () => setAllBuckets(true));
+    document.getElementById('bucketDeselectAll').addEventListener('click', () => setAllBuckets(false));
+    document.getElementById('bucketInvert').addEventListener('click', invertBuckets);
+}
+
+async function openBucketModal() {
+    const modal = document.getElementById('bucketModal');
+    const list = document.getElementById('bucketList');
+    list.innerHTML = '<div style="text-align:center;padding:20px;">加载中...</div>';
+    modal.style.display = 'flex';
+    
+    try {
+        const data = await fetchAPI(`${API_BASE}/buckets/folders`);
+        if (!data) return;
+        
+        bucketData = data;
+        const activeSet = new Set(data.active || []);
+        const hasActiveFilter = activeSet.size > 0;
+        
+        document.getElementById('bucketStatus').textContent = 
+            hasActiveFilter 
+                ? `已过滤：${data.active.join(', ')}`
+                : '全部加载（未过滤）';
+        
+        renderBucketList(data.folders, activeSet);
+    } catch (error) {
+        list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--accent-red);">加载失败: ${error.message}</div>`;
+    }
+}
+
+function renderBucketList(folders, activeSet) {
+    const list = document.getElementById('bucketList');
+    const hasActiveFilter = activeSet.size > 0;
+    
+    list.innerHTML = folders.map(folder => {
+        const isChecked = hasActiveFilter ? activeSet.has(folder.name) : true;
+        return `
+            <label class="bucket-item">
+                <input type="checkbox" class="bucket-checkbox" data-name="${escapeHtml(folder.name)}" ${isChecked ? 'checked' : ''} />
+                <span class="bucket-name">${escapeHtml(folder.name)}</span>
+                <span class="bucket-count">${folder.count.toLocaleString()} 条</span>
+            </label>
+        `;
+    }).join('');
+    
+    updateBucketSelectedCount();
+}
+
+function setAllBuckets(checked) {
+    document.querySelectorAll('.bucket-checkbox').forEach(cb => {
+        cb.checked = checked;
+    });
+    updateBucketSelectedCount();
+}
+
+function invertBuckets() {
+    document.querySelectorAll('.bucket-checkbox').forEach(cb => {
+        cb.checked = !cb.checked;
+    });
+    updateBucketSelectedCount();
+}
+
+function updateBucketSelectedCount() {
+    const checked = document.querySelectorAll('.bucket-checkbox:checked').length;
+    const total = document.querySelectorAll('.bucket-checkbox').length;
+    document.getElementById('bucketSelectedCount').textContent = `${checked} / ${total}`;
+}
+
+// 监听 checkbox 变化
+document.addEventListener('change', (e) => {
+    if (e.target.classList.contains('bucket-checkbox')) {
+        updateBucketSelectedCount();
+    }
+});
+
+async function applyBuckets() {
+    const checked = document.querySelectorAll('.bucket-checkbox:checked');
+    const selectedNames = Array.from(checked).map(cb => cb.dataset.name);
+    const total = document.querySelectorAll('.bucket-checkbox').length;
+    
+    // 如果全选，传空数组（加载全部）
+    const buckets = selectedNames.length === total ? [] : selectedNames;
+    
+    const btn = document.getElementById('applyBuckets');
+    btn.disabled = true;
+    btn.textContent = '⏳ 应用中...';
+    
+    try {
+        const result = await fetchAPI(`${API_BASE}/buckets`, {
+            method: 'PUT',
+            body: JSON.stringify({ buckets: buckets }),
+        });
+        
+        if (result) {
+            document.getElementById('bucketModal').style.display = 'none';
+            alert(`✅ ${result.message}\n加载条目: ${result.total_loaded.toLocaleString()}`);
+            
+            // 刷新页面数据
+            await loadResources();
+            await loadStats();
+        }
+    } catch (error) {
+        alert('应用失败: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '✅ 应用并刷新';
+    }
+}
