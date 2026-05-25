@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import Optional, Union, List
 import yaml
 
-from file_system import vfs, ACTIVE_BUCKETS, BUCKET_FOLDERS
+from file_system import vfs, ACTIVE_BUCKETS, BUCKET_FOLDERS, _get_path_filters
 from auth import verify_credentials
 from fastapi import Depends
 
