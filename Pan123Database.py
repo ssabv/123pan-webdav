@@ -789,6 +789,31 @@ class Pan123Database:
                     item["children_count"] = len(subdirs)
                 result.append(item)
         
+        # 如果仅有一个顶层目录且名称与根文件夹相同，跳过它，将其子目录提升为顶层
+        if len(result) == 1 and result[0]["name"] == rootFolderName:
+            wrapper_fid = top_nodes[0][0]
+            wrapper_node = nodes[wrapper_fid]
+            new_result = []
+            for cid in wrapper_node['children_ids']:
+                child = nodes[cid]
+                if child['type'] == 1:
+                    files, total_sz, subdirs = count_dir(cid)
+                    item = {
+                        "name": child['name'],
+                        "file_count": files,
+                        "total_size": total_sz,
+                    }
+                    if 1 <= len(subdirs) <= 50:
+                        item["children"] = [
+                            {"name": sn, "count": sc}
+                            for sn, sc in sorted(subdirs)
+                        ]
+                    elif len(subdirs) > 50:
+                        item["children_count"] = len(subdirs)
+                    new_result.append(item)
+            print(f"[getShareCodeStructure] 跳过冗余层'{rootFolderName}'，展示 {len(new_result)} 个子目录", flush=True)
+            result = new_result
+        
         if not result and top_nodes:
             # 没有目录类型节点，显示样例
             sample = [(n['name'][:80], n['type']) for _, n in list(top_nodes)[:5]]
