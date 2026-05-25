@@ -610,48 +610,53 @@ class Pan123Database:
         """
         import json as _json
         import base64 as _base64
+        import sys
         from collections import defaultdict as _defaultdict
         
-        # 先尝试精确匹配
+        print(f"[getShareCodeStructure] 查询: {rootFolderName}", flush=True)
+        
+        # Step 1: 精确匹配 visibleFlag=1
         self.database.execute(
-            "SELECT shareCode FROM PAN123DATABASE WHERE rootFolderName=? AND visibleFlag=1",
+            "SELECT shareCode, visibleFlag FROM PAN123DATABASE WHERE rootFolderName=?", 
             (rootFolderName,)
         )
-        row = self.database.fetchone()
+        db_rows = self.database.fetchall()
+        print(f"[getShareCodeStructure] DB中找到 {len(db_rows)} 条记录", flush=True)
         
-        # 如果没找到，尝试不加 visibleFlag 条件
+        row = None
+        for r in db_rows:
+            if r[1] == 1:
+                row = r
+                break
+        if not row and db_rows:
+            row = db_rows[0]
+            print(f"[getShareCodeStructure] 使用第一条记录(visibleFlag={row[1]})", flush=True)
+        
         if not row:
+            # Step 2: LIKE 模糊匹配
             self.database.execute(
-                "SELECT shareCode, visibleFlag FROM PAN123DATABASE WHERE rootFolderName=?",
-                (rootFolderName,)
+                "SELECT rootFolderName FROM PAN123DATABASE WHERE rootFolderName LIKE ? LIMIT 5",
+                (f"%{rootFolderName[:8]}%",)
             )
-            row2 = self.database.fetchone()
-            if row2:
-                print(f"[getShareCodeStructure] {rootFolderName}: visibleFlag={row2[1]}（被过滤）")
-            else:
-                # 尝试 LIKE 查询看有没有近似匹配
-                self.database.execute(
-                    "SELECT rootFolderName FROM PAN123DATABASE WHERE rootFolderName LIKE ? LIMIT 5",
-                    (f"%{rootFolderName[:6]}%",)
-                )
-                similar = self.database.fetchall()
-                print(f"[getShareCodeStructure] {rootFolderName}: 未找到，数据库中类似条目: {[r[0] for r in similar]}")
-        
-        # 如果没找到（visibleFlag!=1），用 row2 的数据
-        if not row and row2:
-            row = row2
-            
-        if not row:
+            similar = [r[0] for r in self.database.fetchall()]
+            print(f"[getShareCodeStructure] 未找到，类似条目: {similar}", flush=True)
             return {"root": rootFolderName, "folders": [], "total_files": 0}
         
         code = row[0]
+        if not code:
+            print(f"[getShareCodeStructure] shareCode 为空", flush=True)
+            return {"root": rootFolderName, "folders": [], "total_files": 0}
+        
+        print(f"[getShareCodeStructure] shareCode 长度: {len(code)}", flush=True)
+        
         try:
-            # 修复 base64 填充缺失问题
             code_padded = code + '=' * (-len(code) % 4)
             data = _json.loads(_base64.b64decode(code_padded).decode('utf-8'))
         except Exception as e:
-            print(f"[getShareCodeStructure] 解析失败 {rootFolderName}: {e}")
+            print(f"[getShareCodeStructure] 解析失败: {e}, code前100字符: {code[:100]}", flush=True)
             return {"root": rootFolderName, "folders": [], "total_files": 0}
+        
+        print(f"[getShareCodeStructure] 共 {len(data)} 个文件项", flush=True)
         
         # 按顶层路径分组
         dirs = _defaultdict(lambda: {"file_count": 0, "total_size": 0, "children": _defaultdict(lambda: {"count": 0})})
@@ -666,12 +671,11 @@ class Pan123Database:
                 sub = parts[1]
                 dirs[top]["children"][sub]["count"] += 1
         
-        # 如果没有找到子目录，输出前几条信息用于调试
         if len(dirs) <= 1 and next(iter(dirs))[0] == '(根目录)':
-            sample_files = [item.get('FileName', '?')[:120] for item in data[:5]]
-            sample_keys = list(data[0].keys()) if data else []
-            print(f"[getShareCodeStructure] {rootFolderName}: 共 {len(data)} 文件，无子目录，样例: {sample_files}")
-            print(f"[getShareCodeStructure] JSON 字段: {sample_keys}")
+            sample = [item.get('FileName', '?')[:120] for item in data[:5]]
+            keys = list(data[0].keys()) if data else []
+            print(f"[getShareCodeStructure] 无子目录，样例: {sample}", flush=True)
+            print(f"[getShareCodeStructure] JSON字段: {keys}", flush=True)
         
         result = []
         for name, info in sorted(dirs.items()):
@@ -680,7 +684,6 @@ class Pan123Database:
                 "file_count": info["file_count"],
                 "total_size": info["total_size"],
             }
-            # 只包含第二层子目录（如果不多于 50 个）
             children_list = sorted(info["children"].items())
             if 1 <= len(children_list) <= 50:
                 item["children"] = [
