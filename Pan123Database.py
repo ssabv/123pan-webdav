@@ -622,8 +622,11 @@ class Pan123Database:
         
         code = row[0]
         try:
-            data = _json.loads(_base64.b64decode(code).decode('utf-8'))
-        except Exception:
+            # 修复 base64 填充缺失问题
+            code_padded = code + '=' * (-len(code) % 4)
+            data = _json.loads(_base64.b64decode(code_padded).decode('utf-8'))
+        except Exception as e:
+            print(f"[getShareCodeStructure] 解析失败 {rootFolderName}: {e}")
             return {"root": rootFolderName, "folders": [], "total_files": 0}
         
         # 按顶层路径分组
@@ -638,6 +641,13 @@ class Pan123Database:
             if len(parts) > 1:
                 sub = parts[1]
                 dirs[top]["children"][sub]["count"] += 1
+        
+        # 如果没有找到子目录，输出前几条信息用于调试
+        if len(dirs) <= 1 and next(iter(dirs))[0] == '(根目录)':
+            sample_files = [item.get('FileName', '?')[:120] for item in data[:5]]
+            sample_keys = list(data[0].keys()) if data else []
+            print(f"[getShareCodeStructure] {rootFolderName}: 共 {len(data)} 文件，无子目录，样例: {sample_files}")
+            print(f"[getShareCodeStructure] JSON 字段: {sample_keys}")
         
         result = []
         for name, info in sorted(dirs.items()):
