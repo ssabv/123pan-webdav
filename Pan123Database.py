@@ -738,7 +738,7 @@ class Pan123Database:
             parts = fn.split('/')
             top = parts[0] if '/' in fn else '(根目录)'
             dirs[top]["file_count"] += 1
-            dirs[top]["total_size"] += item.get("Size", 0)
+            dirs[top]["total_size"] += int(item.get("Size", 0) or 0)
             
             if len(parts) > 1:
                 sub = parts[1]
