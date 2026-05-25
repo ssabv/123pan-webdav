@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import Optional, Union, List
 import yaml
 
-from file_system import vfs, ACTIVE_BUCKETS, BUCKET_FOLDERS, _get_path_filters
+from file_system import vfs, ACTIVE_BUCKETS, BUCKET_FOLDERS, _get_path_filters, _get_subfolder_buckets, SUBFOLDER_BUCKETS
 from auth import verify_credentials
 from fastapi import Depends
 
@@ -139,6 +139,7 @@ class BucketUpdateRequest(BaseModel):
     """更新桶配置请求"""
     buckets: List[str] = []  # 要激活的桶名列表，空列表 = 加载全部
     path_filters: Optional[dict] = None  # {rootFolderName: [path_prefixes]} 每桶内的路径筛选
+    subfolder_buckets: Optional[dict] = None  # {rootFolderName: True} 子目录独立分桶
 
 
 @router.get("/buckets")
@@ -162,6 +163,7 @@ async def list_bucket_folders(credentials=Depends(verify_credentials)):
             "folders": folders,
             "active": ACTIVE_BUCKETS,
             "path_filters": _get_path_filters(),
+            "subfolder_buckets": _get_subfolder_buckets(),
         })
     except Exception as e:
         return JSONResponse(status_code=500, content={"detail": f"{type(e).__name__}: {e}\n{traceback.format_exc()}"})
@@ -195,13 +197,19 @@ async def update_buckets(
     try:
         bucket_filter = request.buckets if request.buckets else []
         path_filters = request.path_filters or {}
-        count = vfs.refresh(bucket_filter=bucket_filter, path_filters=path_filters)
+        subfolder_buckets = request.subfolder_buckets or {}
+        count = vfs.refresh(
+            bucket_filter=bucket_filter,
+            path_filters=path_filters,
+            subfolder_buckets=subfolder_buckets
+        )
         
         # 同步更新 settings.yaml 中的配置
         try:
             with open("settings.yaml", "r", encoding="utf-8") as f:
                 settings = yaml.safe_load(f.read())
             settings["BUCKET_FOLDERS"] = bucket_filter
+            settings["SUBFOLDER_BUCKETS"] = subfolder_buckets
             with open("settings.yaml", "w", encoding="utf-8") as f:
                 yaml.dump(settings, f, allow_unicode=True, default_flow_style=False)
         except Exception as e:
@@ -210,7 +218,8 @@ async def update_buckets(
         return JSONResponse(content={
             "message": "桶配置已更新并刷新缓存",
             "active_buckets": bucket_filter if bucket_filter else ["全部"],
-            "total_loaded": count
+            "total_loaded": count,
+            "subfolder_buckets": subfolder_buckets,
         })
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -6,6 +6,7 @@ let totalPages = 1;
 let currentDeleteHash = null;
 let bucketData = null;  // 分桶数据缓存
 let bucketPathFilters = {};  // {rootFolderName: [path_prefixes]}
+let subfolderBucketState = {};  // {rootFolderName: true} 按子目录分桶
 
 // API 基础路径
 const API_BASE = '/api';
@@ -663,6 +664,7 @@ async function openBucketModal() {
         const activeSet = new Set(data.active || []);
         const hasActiveFilter = activeSet.size > 0;
         bucketPathFilters = data.path_filters || {};
+        subfolderBucketState = data.subfolder_buckets || {};
         
         if (hasActiveFilter) {
             const decadeNames = groupFoldersByDecade(
@@ -734,6 +736,12 @@ function renderBucketTree(folders, activeSet) {
                     <button class="bucket-expand-btn" onclick="toggleFoldersExpand('${escapeHtml(folder.name)}', this)" title="展开查看内部子文件夹">
                         ${hasPathFilter ? '📂' : '▶'}
                     </button>
+                    <label class="bucket-subfolder-toggle" title="每个子目录变成独立分桶" onclick="event.stopPropagation()">
+                        <input type="checkbox" class="subfolder-bucket-cb" data-root="${escapeHtml(folder.name)}" 
+                            ${subfolderBucketState[folder.name] ? 'checked' : ''}
+                            onchange="subfolderBucketState[this.dataset.root] = this.checked" />
+                        🔀 子目录分桶
+                    </label>
                 </div>
                 <div class="bucket-subfolders" id="sub-${escapeHtml(folder.name).replace(/[^a-zA-Z0-9\u4e00-\u9fff]/g, '_')}" style="display:none;"></div>
             `;
@@ -962,6 +970,12 @@ async function applyBuckets() {
     
     const buckets = selectedNames.length === total ? [] : selectedNames;
     
+    // 收集子目录分桶状态（只收集选中的文件夹中开启了分桶的）
+    const subfolderBuckets = {};
+    for (const name of selectedNames) {
+        if (subfolderBucketState[name]) subfolderBuckets[name] = true;
+    }
+    
     const btn = document.getElementById('applyBuckets');
     btn.disabled = true;
     btn.textContent = '⏳ 应用中...';
@@ -971,7 +985,8 @@ async function applyBuckets() {
             method: 'PUT',
             body: JSON.stringify({ 
                 buckets: buckets,
-                path_filters: Object.keys(pathFilters).length > 0 ? pathFilters : null
+                path_filters: Object.keys(pathFilters).length > 0 ? pathFilters : null,
+                subfolder_buckets: Object.keys(subfolderBuckets).length > 0 ? subfolderBuckets : null
             }),
         });
         

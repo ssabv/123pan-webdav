@@ -712,6 +712,21 @@ tr:hover {
     color: var(--accent-blue);
 }
 
+/* 子目录分桶开关 */
+.bucket-subfolder-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+.bucket-subfolder-toggle input {
+    cursor: pointer;
+}
+
 /* 子文件夹列表 */
 .bucket-subfolders {
     border-left: 2px solid var(--border-color);
