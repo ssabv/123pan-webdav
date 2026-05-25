@@ -771,6 +771,11 @@ function renderBucketTree(folders, activeSet) {
                     <button class="bucket-expand-btn" onclick="toggleFoldersExpand('${escapeHtml(folder.name)}', this)" title="展开查看内部子文件夹">
                         ${hasPathFilter ? '📂' : '▶'}
                     </button>
+                    <button class="bucket-root-btn ${bucketRoot === folder.name ? 'active' : ''}" 
+                        onclick="setBucketRoot('${escapeHtml(folder.name)}', this)" 
+                        title="选为桶根：其子目录按名 hash 重新分配到 256 个桶（仅 SPLIT_FOLDER 模式生效）">
+                        ${bucketRoot === folder.name ? '🎯 当前桶根' : '🎯 设为桶根'}
+                    </button>
                 </div>
                 <div class="bucket-subfolders" id="sub-${escapeHtml(folder.name).replace(/[^a-zA-Z0-9\u4e00-\u9fff]/g, '_')}" style="display:none;"></div>
             `;
