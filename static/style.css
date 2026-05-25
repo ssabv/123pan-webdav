@@ -712,19 +712,31 @@ tr:hover {
     color: var(--accent-blue);
 }
 
-/* 子目录分桶开关 */
-.bucket-subfolder-toggle {
+/* 设为桶根按钮 */
+.bucket-root-btn {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    font-size: 12px;
+    gap: 2px;
+    font-size: 11px;
+    padding: 3px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: transparent;
     color: var(--text-secondary);
     cursor: pointer;
-    user-select: none;
     white-space: nowrap;
+    transition: all 0.2s;
 }
-.bucket-subfolder-toggle input {
-    cursor: pointer;
+.bucket-root-btn:hover {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: var(--danger);
+    color: var(--danger);
+}
+.bucket-root-btn.active {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: var(--danger);
+    color: var(--danger);
+    font-weight: 500;
 }
 
 /* 子文件夹列表 */

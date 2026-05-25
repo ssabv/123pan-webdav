@@ -6,7 +6,7 @@ let totalPages = 1;
 let currentDeleteHash = null;
 let bucketData = null;  // 分桶数据缓存
 let bucketPathFilters = {};  // {rootFolderName: [path_prefixes]}
-let subfolderBucketState = {};  // {rootFolderName: true} 按子目录分桶
+let bucketRoot = '';  // 桶根文件夹名
 
 // API 基础路径
 const API_BASE = '/api';
@@ -660,11 +660,11 @@ async function openBucketModal() {
         if (!data) return;
         
         bucketData = data;
-        // 还原 path_filters 状态
+        // 还原 bucket_root 和 path_filters 状态
+        bucketRoot = data.bucket_root || '';
         const activeSet = new Set(data.active || []);
         const hasActiveFilter = activeSet.size > 0;
         bucketPathFilters = data.path_filters || {};
-        subfolderBucketState = data.subfolder_buckets || {};
         
         if (hasActiveFilter) {
             const decadeNames = groupFoldersByDecade(
@@ -736,12 +736,11 @@ function renderBucketTree(folders, activeSet) {
                     <button class="bucket-expand-btn" onclick="toggleFoldersExpand('${escapeHtml(folder.name)}', this)" title="展开查看内部子文件夹">
                         ${hasPathFilter ? '📂' : '▶'}
                     </button>
-                    <label class="bucket-subfolder-toggle" title="每个子目录变成独立分桶" onclick="event.stopPropagation()">
-                        <input type="checkbox" class="subfolder-bucket-cb" data-root="${escapeHtml(folder.name)}" 
-                            ${subfolderBucketState[folder.name] ? 'checked' : ''}
-                            onchange="subfolderBucketState[this.dataset.root] = this.checked" />
-                        🔀 子目录分桶
-                    </label>
+                    <button class="bucket-root-btn ${bucketRoot === folder.name ? 'active' : ''}" 
+                        onclick="setBucketRoot('${escapeHtml(folder.name)}', this)" 
+                        title="选为桶根：其子目录按名 hash 重新分配到 256 个桶（仅 SPLIT_FOLDER 模式生效）">
+                        ${bucketRoot === folder.name ? '🎯 当前桶根' : '🎯 设为桶根'}
+                    </button>
                 </div>
                 <div class="bucket-subfolders" id="sub-${escapeHtml(folder.name).replace(/[^a-zA-Z0-9\u4e00-\u9fff]/g, '_')}" style="display:none;"></div>
             `;
@@ -940,6 +939,38 @@ document.addEventListener('change', (e) => {
     }
 });
 
+function setBucketRoot(folderName, btn) {
+    if (bucketRoot === folderName) {
+        bucketRoot = '';
+    } else {
+        bucketRoot = folderName;
+        // 自动勾选该文件夹
+        const cb = document.querySelector(`.bucket-checkbox[data-name="${CSS.escape(folderName)}"]`);
+        if (cb && !cb.checked) {
+            cb.checked = true;
+            updateBucketSelectedCount();
+            // 也勾选所属 decade 的父复选框
+            const decade = cb.dataset.decade;
+            if (decade) {
+                const siblings = document.querySelectorAll(`.bucket-checkbox[data-decade="${CSS.escape(decade)}"]`);
+                const allChecked = Array.from(siblings).every(s => s.checked);
+                const parentCb = document.querySelector(`.decade-checkbox[data-decade="${CSS.escape(decade)}"]`);
+                if (parentCb) parentCb.checked = allChecked;
+            }
+        }
+    }
+    // 更新所有按钮状态
+    document.querySelectorAll('.bucket-root-btn').forEach(b => {
+        if (b.dataset.root === bucketRoot) {
+            b.classList.add('active');
+            b.textContent = '🎯 当前桶根';
+        } else {
+            b.classList.remove('active');
+            b.textContent = '🎯 设为桶根';
+        }
+    });
+}
+
 async function applyBuckets() {
     const checked = document.querySelectorAll('.bucket-checkbox:checked');
     const selectedNames = Array.from(checked).map(cb => cb.dataset.name);
@@ -970,7 +1001,7 @@ async function applyBuckets() {
     
     const buckets = selectedNames.length === total ? [] : selectedNames;
     
-    // 收集子目录分桶状态（只收集选中的文件夹中开启了分桶的）
+    // 收集子目录分桶状态
     const subfolderBuckets = {};
     for (const name of selectedNames) {
         if (subfolderBucketState[name]) subfolderBuckets[name] = true;
@@ -986,7 +1017,7 @@ async function applyBuckets() {
             body: JSON.stringify({ 
                 buckets: buckets,
                 path_filters: Object.keys(pathFilters).length > 0 ? pathFilters : null,
-                subfolder_buckets: Object.keys(subfolderBuckets).length > 0 ? subfolderBuckets : null
+                bucket_root: bucketRoot || null
             }),
         });
         
