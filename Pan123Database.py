@@ -649,11 +649,77 @@ class Pan123Database:
         
         print(f"[getShareCodeStructure] shareCode 长度: {len(code)}", flush=True)
         
+        # 解码 base64（兼容各种格式）
+        code_stripped = code.replace('\n', '').replace('\r', '').replace(' ', '')
+        code_padded = code_stripped + '=' * (-len(code_stripped) % 4)
+        
         try:
-            code_padded = code + '=' * (-len(code) % 4)
-            data = _json.loads(_base64.b64decode(code_padded).decode('utf-8'))
+            raw_bytes = _base64.b64decode(code_padded)
         except Exception as e:
-            print(f"[getShareCodeStructure] 解析失败: {e}, code前100字符: {code[:100]}", flush=True)
+            print(f"[getShareCodeStructure] base64解码失败: {e}", flush=True)
+            return {"root": rootFolderName, "folders": [], "total_files": 0}
+        
+        print(f"[getShareCodeStructure] 解码后 {len(raw_bytes)} 字节, 前4字节: {raw_bytes[:4].hex()}", flush=True)
+        
+        # 尝试多种方式解析为 JSON
+        data = None
+        text = None
+        
+        # 方式1: UTF-8
+        try:
+            text = raw_bytes.decode('utf-8')
+            data = _json.loads(text)
+            print(f"[getShareCodeStructure] UTF-8 解析成功", flush=True)
+        except (UnicodeDecodeError, _json.JSONDecodeError):
+            pass
+        
+        # 方式2: GBK（中文Windows编码）
+        if data is None:
+            try:
+                text = raw_bytes.decode('gbk', errors='replace')
+                data = _json.loads(text)
+                print(f"[getShareCodeStructure] GBK 解析成功", flush=True)
+            except _json.JSONDecodeError:
+                pass
+        
+        # 方式3: gzip 解压后 UTF-8
+        if data is None:
+            try:
+                import gzip
+                decompressed = gzip.decompress(raw_bytes)
+                text = decompressed.decode('utf-8')
+                data = _json.loads(text)
+                print(f"[getShareCodeStructure] gzip解压+UTF-8 成功", flush=True)
+            except Exception:
+                pass
+        
+        # 方式4: gzip 解压后 GBK
+        if data is None:
+            try:
+                import gzip
+                decompressed = gzip.decompress(raw_bytes)
+                text = decompressed.decode('gbk', errors='replace')
+                data = _json.loads(text)
+                print(f"[getShareCodeStructure] gzip解压+GBK 成功", flush=True)
+            except Exception:
+                pass
+        
+        # 方式5: latin1（单字节兜底，不丢数据）
+        if data is None:
+            try:
+                text = raw_bytes.decode('latin1')
+                data = _json.loads(text)
+                print(f"[getShareCodeStructure] latin1 解析成功", flush=True)
+            except _json.JSONDecodeError as e:
+                print(f"[getShareCodeStructure] latin1 JSON 解析也失败: {e}", flush=True)
+        
+        if data is None:
+            # 输出更多诊断信息
+            sample_start = raw_bytes[:200]
+            if text is None:
+                text = raw_bytes.decode('utf-8', errors='replace')
+            print(f"[getShareCodeStructure] 所有方式均失败, 解码后前200字符: {text[:200]}", flush=True)
+            print(f"[getShareCodeStructure] 原始字节前40: {raw_bytes[:40].hex()}", flush=True)
             return {"root": rootFolderName, "folders": [], "total_files": 0}
         
         print(f"[getShareCodeStructure] 共 {len(data)} 个文件项", flush=True)
