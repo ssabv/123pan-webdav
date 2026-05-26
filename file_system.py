@@ -66,10 +66,10 @@ def load_data_into_memory(db: Pan123Database, bucket_filter: list = None, path_f
     global ACTIVE_BUCKETS, BUCKET_ROOTS, BUCKET_ROOT_CHILD_TREES, SUBFOLDER_MAP, SUBFOLDER_BUCKETS
     
     if bucket_filter is not None:
-        ACTIVE_BUCKETS = list(bucket_filter)
+        ACTIVE_BUCKETS[:] = bucket_filter
     
     if bucket_roots is not None:
-        BUCKET_ROOTS = list(bucket_roots)
+        BUCKET_ROOTS[:] = bucket_roots
         BUCKET_ROOT_CHILD_TREES.clear()
     
     active = ACTIVE_BUCKETS
